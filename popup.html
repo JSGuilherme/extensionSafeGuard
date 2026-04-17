@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CofreSenhaRust</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app-header">
+        <h1>CofreSenhaRust</h1>
+        <p id="backend-state">Status do backend: verificando...</p>
+      </header>
+
+      <section class="unlock-panel">
+        <label for="master-password">Senha mestra</label>
+        <input id="master-password" type="password" autocomplete="off" placeholder="Digite sua senha mestra" />
+        <button id="unlock-btn" type="button">Desbloquear</button>
+      </section>
+
+      <section class="entries-panel">
+        <div class="entries-header">
+          <h2>Credenciais</h2>
+          <button id="refresh-btn" type="button" class="secondary">Atualizar</button>
+        </div>
+        <ul id="entries-list" class="entries-list"></ul>
+      </section>
+
+      <footer class="actions">
+        <button id="lock-btn" type="button" class="secondary">Encerrar sessao</button>
+      </footer>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

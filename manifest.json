@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "CofreSenhaRust Helper",
+  "description": "Integracao local entre navegador e API do CofreSenhaRust",
+  "version": "0.1.0",
+  "permissions": ["storage", "tabs", "activeTab", "clipboardWrite", "scripting"],
+  "host_permissions": ["http://127.0.0.1:5474/*", "<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "CofreSenhaRust",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

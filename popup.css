@@ -1,0 +1,167 @@
+:root {
+  --bg: #f7f4ec;
+  --surface: #fffaf0;
+  --surface-2: #efe5cf;
+  --text: #2a2117;
+  --muted: #6b5b47;
+  --accent: #2d8047;
+  --accent-hover: #215732;
+  --danger: #8f2d2d;
+  --ok: #216b3a;
+  --border: #d9c8a7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  background:
+    radial-gradient(circle at 10% 10%, #f1dec0 0%, transparent 40%),
+    radial-gradient(circle at 90% 30%, #d9e8e9 0%, transparent 35%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+.app {
+  padding: 14px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.app-header p {
+  margin: 4px 0 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.unlock-panel,
+.entries-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+button {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.entries-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entries-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.entries-header button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.entries-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.entry-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.entry-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.entry-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.entry-action {
+  width: 100%;
+  text-align: center;
+  border: 1px dashed var(--border);
+}
+
+.entry-action.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.entry-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.status {
+  min-height: 20px;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.status.success {
+  color: var(--ok);
+}
