@@ -4,16 +4,50 @@
     --surface-2: rgba(28, 39, 63, 0.92);
     --surface-3: rgba(8, 15, 28, 0.95);
     --text: #e5eefc;
+    --colorHover: #ffffff;
     --muted: #90a4c3;
     --accent: #5b8cff;
     --accent-hover: #3f74ff;
+    --secondary-hover: rgba(144, 164, 195, 0.12);
     --danger: #ff6b81;
     --ok: #35c48a;
     --border: rgba(144, 164, 195, 0.18);
     --shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+    --field-bg: rgba(7, 12, 24, 0.72);
+    --placeholder: #6d7f9f;
+    --bg-glow-1: rgba(91, 140, 255, 0.22);
+    --bg-glow-2: rgba(53, 196, 138, 0.14);
+    --bg-top: #0c1424;
+    --bg-bottom: #0b1220;
+    --scrollbar-color: rgba(91, 140, 255, 0.92);
     --scrollbar-track: rgba(8, 15, 28, 0.72);
     --scrollbar-thumb: linear-gradient(180deg, rgba(91, 140, 255, 0.9), rgba(53, 196, 138, 0.78));
     --scrollbar-thumb-hover: linear-gradient(180deg, rgba(91, 140, 255, 1), rgba(53, 196, 138, 0.92));
+}
+
+html[data-theme="light"] {
+    --bg: #edf2f9;
+    --surface: rgba(255, 255, 255, 0.9);
+    --surface-2: rgba(236, 242, 252, 0.95);
+    --surface-3: rgba(244, 248, 255, 0.95);
+    --text: #1d2a3b;
+    --colorHover: #ffffff;
+    --muted: #4e637b;
+    --accent: #2f6bf2;
+    --accent-hover: #1f5ce5;
+    --secondary-hover: rgba(29, 42, 59, 0.75);
+    --border: rgba(29, 42, 59, 0.15);
+    --shadow: 0 16px 40px rgba(35, 52, 81, 0.16);
+    --field-bg: rgba(255, 255, 255, 0.94);
+    --placeholder: #6c7f96;
+    --bg-glow-1: rgba(58, 117, 255, 0.18);
+    --bg-glow-2: rgba(53, 196, 138, 0.11);
+    --bg-top: #ffffff;
+    --bg-bottom: #ffffff;
+    --scrollbar-color: rgba(47, 107, 242, 0.82);
+    --scrollbar-track: rgba(180, 200, 230, 0.48);
+    --scrollbar-thumb: linear-gradient(180deg, rgba(47, 107, 242, 0.84), rgba(53, 196, 138, 0.7));
+    --scrollbar-thumb-hover: linear-gradient(180deg, rgba(47, 107, 242, 0.95), rgba(53, 196, 138, 0.82));
 }
 
 * {
@@ -23,7 +57,7 @@
 html,
 body {
     scrollbar-width: thin;
-    scrollbar-color: rgba(91, 140, 255, 0.92) var(--scrollbar-track);
+    scrollbar-color: var(--scrollbar-color) var(--scrollbar-track);
     height: 580px;
     margin: 0;
     overflow: hidden;
@@ -33,9 +67,9 @@ body {
     margin: 0;
     min-width: 360px;
     background:
-        radial-gradient(circle at top left, rgba(91, 140, 255, 0.22), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(53, 196, 138, 0.14), transparent 24%),
-        linear-gradient(180deg, #0c1424 0%, #0b1220 100%);
+        radial-gradient(circle at top left, var(--bg-glow-1), transparent 28%),
+        radial-gradient(circle at bottom right, var(--bg-glow-2), transparent 24%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
     color: var(--text);
     font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -66,7 +100,7 @@ body {
 
 .app-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
 }
 
@@ -79,6 +113,14 @@ body {
 
 .app-header-text {
     min-width: 0;
+    flex: 1;
+}
+
+.theme-toggle-btn {
+    width: auto;
+    white-space: nowrap;
+    margin-left: auto;
+    align-self: center;
 }
 
 .app-header h1 {
@@ -162,7 +204,7 @@ body {
 textarea {
     width: 100%;
     border: 1px solid var(--border);
-    background: rgba(7, 12, 24, 0.72);
+    background: var(--field-bg);
     color: var(--text);
     border-radius: 8px;
     padding: 8px;
@@ -179,7 +221,7 @@ label {
 input {
     width: 100%;
     border: 1px solid var(--border);
-    background: rgba(7, 12, 24, 0.72);
+    background: var(--field-bg);
     color: var(--text);
     border-radius: 8px;
     padding: 8px;
@@ -188,7 +230,7 @@ input {
 
 input::placeholder,
 textarea::placeholder {
-    color: #6d7f9f;
+    color: var(--placeholder);
 }
 
 button {
@@ -205,6 +247,7 @@ button {
 
 button:hover {
     background: var(--accent-hover);
+    color: var(--colorHover);
 }
 
 button:active {
@@ -214,6 +257,11 @@ button:active {
 button.secondary {
     background: var(--surface-2);
     color: var(--text);
+}
+
+button.secondary:hover {
+    background: var(--secondary-hover);
+    color: var(--colorHover);
 }
 
 button:disabled {
@@ -271,7 +319,7 @@ html,
 body,
 textarea {
     scrollbar-width: thin;
-    scrollbar-color: rgba(91, 140, 255, 0.92) var(--scrollbar-track);
+    scrollbar-color: var(--scrollbar-color) var(--scrollbar-track);
 }
 
 .entries-panel::-webkit-scrollbar,

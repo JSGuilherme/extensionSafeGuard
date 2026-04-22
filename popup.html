@@ -3,17 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CofreSenhaRust</title>
+    <title>SafeGuard</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <main class="app">
       <header class="app-header">
-        <img class="app-logo" src="icons/logo-sg.svg" alt="Logo CofreSenhaRust" width="64" height="64" />
+        <img class="app-logo" src="icons/logo-sg.svg" alt="Logo SafeGuard" width="64" height="64" />
         <div class="app-header-text">
-          <h1>CofreSenhaRust</h1>
-          <p id="backend-state">Status do backend: verificando...</p>
+          <h1>SafeGuard</h1>
+          <p id="backend-state">Status: verificando...</p>
         </div>
+        <button
+          id="theme-toggle-btn"
+          class="secondary theme-toggle-btn"
+          type="button"
+          aria-label="Alternar para tema claro"
+          aria-pressed="false"
+        >
+          Tema escuro
+        </button>
       </header>
 
       <nav class="tabs" aria-label="Seções da extensão">
@@ -27,7 +36,7 @@
           <input id="master-password" type="password" autocomplete="off" placeholder="Digite sua senha mestra" />
           <div class="unlock-actions">
             <button id="unlock-btn" type="button">Desbloquear</button>
-            <button id="create-vault-btn" type="button" class="secondary">Cadastrar cofre</button>
+            <button id="create-vault-btn" type="button" class="secondary hidden">Cadastrar cofre</button>
           </div>
         </section>
 

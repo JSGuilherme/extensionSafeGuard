@@ -32,12 +32,18 @@ const clearCreateBtn = mustGetElement<HTMLButtonElement>("clear-create-btn");
 const entriesList = mustGetElement<HTMLUListElement>("entries-list");
 const statusText = mustGetElement<HTMLParagraphElement>("status");
 const backendStateText = mustGetElement<HTMLParagraphElement>("backend-state");
+const themeToggleBtn = mustGetElement<HTMLButtonElement>("theme-toggle-btn");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
+const THEME_STORAGE_KEY = "safeguard_theme";
+
+type ThemeMode = "dark" | "light";
 
 let entriesCache: EntrySummary[] = [];
 let sessionUnlocked = false;
 let vaultExists = true;
+let currentTheme: ThemeMode = "dark";
 
+void initializeTheme();
 syncSessionUi();
 
 unlockBtn.addEventListener("click", () => {
@@ -54,6 +60,10 @@ refreshBtn.addEventListener("click", () => {
 
 lockBtn.addEventListener("click", () => {
     void lockSession();
+});
+
+themeToggleBtn.addEventListener("click", () => {
+    void toggleTheme();
 });
 
 tabEntriesBtn.addEventListener("click", () => {
@@ -87,6 +97,54 @@ passwordInput.addEventListener("keydown", (event) => {
 });
 
 void runInitialCheck();
+
+async function initializeTheme(): Promise<void> {
+    const storedTheme = await loadStoredTheme();
+    applyTheme(storedTheme ?? "dark");
+}
+
+async function loadStoredTheme(): Promise<ThemeMode | null> {
+    try {
+        const result = await chrome.storage.local.get(THEME_STORAGE_KEY);
+        const value = result[THEME_STORAGE_KEY] as unknown;
+        if (value === "dark" || value === "light") {
+            return value;
+        }
+    } catch (error) {
+        console.warn("Falha ao carregar tema salvo:", error);
+    }
+
+    return null;
+}
+
+async function persistTheme(theme: ThemeMode): Promise<void> {
+    try {
+        await chrome.storage.local.set({
+            [THEME_STORAGE_KEY]: theme
+        });
+    } catch (error) {
+        console.warn("Falha ao salvar tema:", error);
+    }
+}
+
+function applyTheme(theme: ThemeMode): void {
+    currentTheme = theme;
+    document.documentElement.dataset.theme = theme;
+    syncThemeToggleUi();
+}
+
+function syncThemeToggleUi(): void {
+    const isLight = currentTheme === "light";
+    themeToggleBtn.textContent = isLight ? "Tema claro" : "Tema escuro";
+    themeToggleBtn.setAttribute("aria-pressed", String(isLight));
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Alternar para tema escuro" : "Alternar para tema claro");
+}
+
+async function toggleTheme(): Promise<void> {
+    const nextTheme: ThemeMode = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme);
+    await persistTheme(nextTheme);
+}
 
 async function runInitialCheck(): Promise<void> {
     console.info("[cofre-popup] runInitialCheck: iniciando verificacao do backend e da sessao.");
@@ -551,11 +609,11 @@ async function ensureBackendAvailable(options?: { showReadyStatus?: boolean }): 
 
 function setBackendState(state: "online" | "offline"): void {
     if (state === "online") {
-        backendStateText.textContent = "Status do backend: online";
+        backendStateText.textContent = "Status: online";
         return;
     }
 
-    backendStateText.textContent = "Status do backend: offline";
+    backendStateText.textContent = "Status: offline";
 }
 
 function setInteractive(enabled: boolean): void {
@@ -576,7 +634,7 @@ function setInteractive(enabled: boolean): void {
 }
 
 function syncVaultUi(): void {
-    createVaultBtn.classList.remove("hidden");
+    //createVaultBtn.classList.remove("hidden");
     createVaultBtn.textContent = "Cadastrar cofre";
 }
 
