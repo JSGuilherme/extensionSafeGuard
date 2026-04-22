@@ -10,6 +10,12 @@ import type {
 import { ApiClientError } from "../types/api.js";
 import type { CreateEntryUiResult } from "../types/messages.js";
 
+interface CreateEntryApiResponse {
+  entry_id?: string;
+  entryId?: string;
+  created?: boolean;
+}
+
 interface ApiClientOptions {
   baseUrl: string;
   authMode: AuthMode;
@@ -117,9 +123,9 @@ export class LocalApiClient {
     body: {
       servico: string;
       usuario: string;
-      password: string;
+      senha: string;
       url?: string;
-      notes?: string;
+      notas?: string;
     }
   ): Promise<CreateEntryUiResult> {
     const auth = this.buildAuth(sessionToken, {
@@ -127,7 +133,7 @@ export class LocalApiClient {
       pathWithBearer: "/api/v1/entries"
     });
 
-    const payload = await this.requestJson<CreateEntryUiResult>(auth.path, {
+    const payload = await this.requestJson<CreateEntryApiResponse>(auth.path, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -136,11 +142,15 @@ export class LocalApiClient {
       body: JSON.stringify(body)
     });
 
-    if (typeof payload.entryId !== "string" || typeof payload.created !== "boolean") {
+    const entryId = payload.entry_id ?? payload.entryId;
+    if (typeof entryId !== "string" || typeof payload.created !== "boolean") {
       throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de cadastro.");
     }
 
-    return payload;
+    return {
+      entryId,
+      created: payload.created
+    };
   }
 
   async getEntryPassword(sessionToken: string, entryId: string): Promise<EntryPasswordResponse> {

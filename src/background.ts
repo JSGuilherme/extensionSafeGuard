@@ -176,13 +176,23 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "CREATE_ENTRY") {
+      console.info("[cofre-bg] CREATE_ENTRY: requisicao recebida.", {
+        service: message.service,
+        hasUsername: Boolean(message.username),
+        hasPassword: Boolean(message.password)
+      });
       const activeSession = await requireSession();
       const result = await apiClient.createEntry(activeSession.token, {
         servico: message.service,
         usuario: message.username,
-        password: message.password,
+        senha: message.password,
         url: message.url,
-        notes: message.notes
+        notas: message.notes
+      });
+
+      console.info("[cofre-bg] CREATE_ENTRY: API retornou sucesso.", {
+        entryId: result.entryId,
+        created: result.created
       });
 
       return {
@@ -248,6 +258,12 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     return { ok: false, error: { code: "UNKNOWN_ACTION", message: "Acao nao suportada." } };
   } catch (error) {
     if (error instanceof ApiClientError) {
+      console.warn("[cofre-bg] handleMessage: ApiClientError capturado.", {
+        code: error.code,
+        status: error.status,
+        message: error.message,
+        action: message.type
+      });
       if (error.code === "SESSION_EXPIRED") {
         await clearSessionState();
       }
@@ -256,6 +272,11 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
         error: { code: error.code, message: error.message }
       };
     }
+
+    console.error("[cofre-bg] handleMessage: erro nao mapeado.", {
+      action: message.type,
+      error
+    });
 
     return {
       ok: false,
