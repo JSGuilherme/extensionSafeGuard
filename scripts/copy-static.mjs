@@ -11,3 +11,10 @@ if (!existsSync(distPath)) {
 for (const fileName of staticFiles) {
   cpSync(resolve(fileName), resolve("dist", fileName));
 }
+
+// Copy icons folder
+const iconsPath = resolve("src/icons");
+const distIconsPath = resolve("dist/icons");
+if (existsSync(iconsPath)) {
+  cpSync(iconsPath, distIconsPath, { recursive: true });
+}
