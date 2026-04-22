@@ -4,9 +4,11 @@ import type {
   HealthResponse,
   ListEntriesResponse,
   UnlockRequest,
-  UnlockResponse
+  UnlockResponse,
+  VaultStatusResponse
 } from "../types/api.js";
 import { ApiClientError } from "../types/api.js";
+import type { CreateEntryUiResult } from "../types/messages.js";
 
 interface ApiClientOptions {
   baseUrl: string;
@@ -62,6 +64,36 @@ export class LocalApiClient {
     return payload;
   }
 
+  async getVaultStatus(): Promise<VaultStatusResponse> {
+    const payload = await this.requestJson<VaultStatusResponse>("/api/v1/vault", {
+      method: "GET"
+    });
+
+    if (typeof payload.exists !== "boolean") {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de status do cofre.");
+    }
+
+    return payload;
+  }
+
+  async createVault(body: UnlockRequest): Promise<UnlockResponse> {
+    const payload = await this.requestJson<UnlockResponse>("/api/v1/vault", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (
+      typeof payload.session_token !== "string" ||
+      typeof payload.expires_at_unix !== "number" ||
+      typeof payload.ttl_secs !== "number"
+    ) {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de criacao de cofre.");
+    }
+
+    return payload;
+  }
+
   async listEntries(sessionToken: string): Promise<ListEntriesResponse> {
     const auth = this.buildAuth(sessionToken, {
       pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}`,
@@ -75,6 +107,37 @@ export class LocalApiClient {
 
     if (!Array.isArray(payload.entries)) {
       throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de listagem.");
+    }
+
+    return payload;
+  }
+
+  async createEntry(
+    sessionToken: string,
+    body: {
+      servico: string;
+      usuario: string;
+      password: string;
+      url?: string;
+      notes?: string;
+    }
+  ): Promise<CreateEntryUiResult> {
+    const auth = this.buildAuth(sessionToken, {
+      pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}`,
+      pathWithBearer: "/api/v1/entries"
+    });
+
+    const payload = await this.requestJson<CreateEntryUiResult>(auth.path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth.headers ?? {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (typeof payload.entryId !== "string" || typeof payload.created !== "boolean") {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de cadastro.");
     }
 
     return payload;
@@ -176,6 +239,9 @@ export class LocalApiClient {
     }
     if (response.status === 401) {
       return new ApiClientError("SESSION_EXPIRED", "Sessao invalida ou expirada.", 401);
+    }
+    if (response.status === 409) {
+      return new ApiClientError("CONFLICT", "Recurso ja existe.", 409);
     }
     if (response.status === 404) {
       return new ApiClientError("NOT_FOUND", "Recurso nao encontrado.", 404);

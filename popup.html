@@ -13,23 +13,63 @@
         <p id="backend-state">Status do backend: verificando...</p>
       </header>
 
-      <section class="unlock-panel">
+      <nav class="tabs" aria-label="Seções da extensão">
+        <button id="tab-entries-btn" class="tab-btn active" type="button" data-tab-target="entries-panel">Credenciais</button>
+        <button id="tab-create-btn" class="tab-btn" type="button" data-tab-target="create-panel">Cadastrar chave</button>
+      </nav>
+
+      <section id="unlock-panel" class="unlock-panel">
         <label for="master-password">Senha mestra</label>
         <input id="master-password" type="password" autocomplete="off" placeholder="Digite sua senha mestra" />
-        <button id="unlock-btn" type="button">Desbloquear</button>
+        <div class="unlock-actions">
+          <button id="unlock-btn" type="button">Desbloquear</button>
+          <button id="create-vault-btn" type="button" class="secondary">Cadastrar cofre</button>
+        </div>
       </section>
 
-      <section class="entries-panel">
+      <section id="entries-panel" class="panel entries-panel">
         <div class="entries-header">
           <h2>Credenciais</h2>
-          <button id="refresh-btn" type="button" class="secondary">Atualizar</button>
+          <div class="entries-header-actions">
+            <button id="refresh-btn" type="button" class="secondary">Atualizar</button>
+            <button id="lock-btn" type="button" class="secondary">Desconectar</button>
+          </div>
         </div>
         <ul id="entries-list" class="entries-list"></ul>
       </section>
 
-      <footer class="actions">
-        <button id="lock-btn" type="button" class="secondary">Encerrar sessao</button>
-      </footer>
+      <section id="create-panel" class="panel create-panel hidden">
+        <div class="entries-header">
+          <h2>Cadastrar chave</h2>
+          <button id="clear-create-btn" type="button" class="secondary">Limpar</button>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label for="create-service">Serviço</label>
+            <input id="create-service" type="text" autocomplete="off" placeholder="Ex.: github" />
+          </div>
+          <div>
+            <label for="create-username">Usuário</label>
+            <input id="create-username" type="text" autocomplete="off" placeholder="Ex.: joao" />
+          </div>
+          <div>
+            <label for="create-password">Senha</label>
+            <input id="create-password" type="password" autocomplete="off" placeholder="Senha da chave" />
+          </div>
+          <div>
+            <label for="create-url">URL</label>
+            <input id="create-url" type="url" autocomplete="off" placeholder="https://..." />
+          </div>
+        </div>
+
+        <div class="create-notes-wrap">
+          <label for="create-notes">Notas</label>
+          <textarea id="create-notes" rows="3" placeholder="Opcional"></textarea>
+        </div>
+
+        <button id="create-entry-btn" type="button">Salvar chave</button>
+      </section>
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </main>

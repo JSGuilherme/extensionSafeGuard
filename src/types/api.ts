@@ -13,6 +13,10 @@ export interface UnlockResponse {
   ttl_secs: number;
 }
 
+export interface VaultStatusResponse {
+  exists: boolean;
+}
+
 export interface EntrySummary {
   id: string;
   servico: string;
@@ -33,6 +37,7 @@ export type ApiErrorCode =
   | "API_OFFLINE"
   | "INVALID_RESPONSE"
   | "BAD_REQUEST"
+  | "CONFLICT"
   | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "SESSION_EXPIRED"

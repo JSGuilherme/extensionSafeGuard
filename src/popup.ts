@@ -1,27 +1,51 @@
 import type { EntrySummary } from "./types/api.js";
 import type {
+    CreateVaultUiResult,
+    CreateEntryUiResult,
     GetPasswordValueUiResult,
     GetPasswordUiResult,
     ListEntriesUiResult,
     RuntimeRequest,
     RuntimeResponse,
     SessionStatusUiResult,
-    UnlockUiResult
+    UnlockUiResult,
+    VaultStatusUiResult
 } from "./types/messages.js";
 
 const unlockBtn = mustGetElement<HTMLButtonElement>("unlock-btn");
+const createVaultBtn = mustGetElement<HTMLButtonElement>("create-vault-btn");
 const refreshBtn = mustGetElement<HTMLButtonElement>("refresh-btn");
 const lockBtn = mustGetElement<HTMLButtonElement>("lock-btn");
 const passwordInput = mustGetElement<HTMLInputElement>("master-password");
+const unlockPanel = mustGetElement<HTMLElement>("unlock-panel");
+const tabEntriesBtn = mustGetElement<HTMLButtonElement>("tab-entries-btn");
+const tabCreateBtn = mustGetElement<HTMLButtonElement>("tab-create-btn");
+const entriesPanel = mustGetElement<HTMLElement>("entries-panel");
+const createPanel = mustGetElement<HTMLElement>("create-panel");
+const createServiceInput = mustGetElement<HTMLInputElement>("create-service");
+const createUsernameInput = mustGetElement<HTMLInputElement>("create-username");
+const createPasswordInput = mustGetElement<HTMLInputElement>("create-password");
+const createUrlInput = mustGetElement<HTMLInputElement>("create-url");
+const createNotesInput = mustGetElement<HTMLTextAreaElement>("create-notes");
+const createEntryBtn = mustGetElement<HTMLButtonElement>("create-entry-btn");
+const clearCreateBtn = mustGetElement<HTMLButtonElement>("clear-create-btn");
 const entriesList = mustGetElement<HTMLUListElement>("entries-list");
 const statusText = mustGetElement<HTMLParagraphElement>("status");
 const backendStateText = mustGetElement<HTMLParagraphElement>("backend-state");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 
 let entriesCache: EntrySummary[] = [];
+let sessionUnlocked = false;
+let vaultExists = true;
+
+syncSessionUi();
 
 unlockBtn.addEventListener("click", () => {
     void unlock();
+});
+
+createVaultBtn.addEventListener("click", () => {
+    void createVault();
 });
 
 refreshBtn.addEventListener("click", () => {
@@ -30,6 +54,29 @@ refreshBtn.addEventListener("click", () => {
 
 lockBtn.addEventListener("click", () => {
     void lockSession();
+});
+
+tabEntriesBtn.addEventListener("click", () => {
+    setActiveTab("entries");
+});
+
+tabCreateBtn.addEventListener("click", () => {
+    setActiveTab("create");
+});
+
+clearCreateBtn.addEventListener("click", () => {
+    clearCreateForm();
+});
+
+createEntryBtn.addEventListener("click", () => {
+    void createEntry();
+});
+
+createNotesInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        void createEntry();
+    }
 });
 
 passwordInput.addEventListener("keydown", (event) => {
@@ -42,9 +89,32 @@ passwordInput.addEventListener("keydown", (event) => {
 void runInitialCheck();
 
 async function runInitialCheck(): Promise<void> {
+    setActiveTab("entries");
     const isAvailable = await ensureBackendAvailable();
     if (!isAvailable) {
         console.warn("Healthcheck inicial falhou.");
+        return;
+    }
+
+    try {
+        const vaultStatus = await sendMessage<VaultStatusUiResult>({ type: "GET_VAULT_STATUS" });
+        if (!vaultStatus.ok) {
+            setStatus(mapFriendlyError(vaultStatus.error.code), "error");
+            return;
+        }
+
+        vaultExists = vaultStatus.data.exists;
+        syncVaultUi();
+
+        if (!vaultExists) {
+            sessionUnlocked = false;
+            syncSessionUi();
+            setStatus("Nenhum cofre encontrado. Informe a senha mestra e clique em Cadastrar cofre.");
+            return;
+        }
+    } catch (error) {
+        console.warn("Falha ao consultar status do cofre na inicializacao:", error);
+        setStatus("Nao foi possivel verificar se o cofre existe.", "error");
         return;
     }
 
@@ -57,10 +127,15 @@ async function runInitialCheck(): Promise<void> {
         }
 
         if (sessionStatus.data.unlocked) {
+            sessionUnlocked = true;
+            syncSessionUi();
             setStatus("Sessao ativa restaurada.", "success");
             await loadEntries();
             return;
         }
+
+        sessionUnlocked = false;
+        syncSessionUi();
     } catch (error) {
         console.warn("Falha ao consultar status da sessao na inicializacao:", error);
     }
@@ -77,6 +152,11 @@ async function unlock(): Promise<void> {
     if (!masterPassword) {
         console.warn("Senha mestra nao informada.");
         setStatus("Informe a senha mestra.", "error");
+        return;
+    }
+
+    if (!vaultExists) {
+        setStatus("Cofre nao encontrado. Clique em Cadastrar cofre para criar o primeiro cofre.", "error");
         return;
     }
 
@@ -97,6 +177,52 @@ async function unlock(): Promise<void> {
 
     passwordInput.value = "";
     setStatus(`Sessao desbloqueada. TTL: ${response.data.ttlSecs}s`, "success");
+    sessionUnlocked = true;
+    syncSessionUi();
+    setInteractive(true);
+    await loadEntries();
+}
+
+async function createVault(): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
+        return;
+    }
+
+    const masterPassword = passwordInput.value;
+    if (!masterPassword) {
+        setStatus("Informe a senha mestra para cadastrar o cofre.", "error");
+        return;
+    }
+
+    setStatus("Cadastrando cofre...");
+    toggleLoading(true);
+
+    const response = await sendMessage<CreateVaultUiResult>({
+        type: "CREATE_VAULT",
+        masterPassword
+    });
+
+    toggleLoading(false);
+
+    if (!response.ok) {
+        if (response.error.code === "CONFLICT") {
+            vaultExists = true;
+            syncVaultUi();
+            setStatus("Cofre ja existe. Use Desbloquear para iniciar a sessao.", "error");
+            return;
+        }
+
+        setStatus(mapFriendlyError(response.error.code), "error");
+        return;
+    }
+
+    passwordInput.value = "";
+    vaultExists = true;
+    sessionUnlocked = true;
+    syncVaultUi();
+    syncSessionUi();
+    setInteractive(true);
+    setStatus(`Cofre cadastrado e sessao desbloqueada. TTL: ${response.data.ttlSecs}s`, "success");
     await loadEntries();
 }
 
@@ -112,6 +238,9 @@ async function loadEntries(): Promise<void> {
         setStatus(mapFriendlyError(response.error.code), "error");
         if (response.error.code === "SESSION_EXPIRED") {
             entriesCache = [];
+            sessionUnlocked = false;
+            syncSessionUi();
+            setInteractive(true);
             renderEntries();
         }
         return;
@@ -126,6 +255,55 @@ async function loadEntries(): Promise<void> {
     }
 
     setStatus(`${entriesCache.length} credencial(is) carregada(s).`, "success");
+}
+
+async function createEntry(): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
+        return;
+    }
+
+    const servico = createServiceInput.value.trim();
+    const usuario = createUsernameInput.value.trim();
+    const senha = createPasswordInput.value;
+    const url = createUrlInput.value.trim();
+    const notas = createNotesInput.value.trim();
+
+    if (!servico || !usuario || !senha) {
+        setStatus("Serviço, usuário e senha são obrigatórios.", "error");
+        return;
+    }
+
+    setStatus("Salvando chave...");
+    createEntryBtn.disabled = true;
+
+    let response: RuntimeResponse<CreateEntryUiResult>;
+    try {
+        response = await sendMessage<CreateEntryUiResult>({
+            type: "CREATE_ENTRY",
+            service: servico,
+            username: usuario,
+            password: senha,
+            url: url || undefined,
+            notes: notas || undefined
+        });
+    } catch (error) {
+        console.error("Falha ao cadastrar chave via background:", error);
+        setStatus("Falha ao cadastrar a chave.", "error");
+        createEntryBtn.disabled = false;
+        return;
+    }
+
+    createEntryBtn.disabled = false;
+
+    if (!response.ok) {
+        setStatus(mapFriendlyError(response.error.code), "error");
+        return;
+    }
+
+    clearCreateForm();
+    setStatus(response.data.created ? "Chave cadastrada com sucesso." : "Chave atualizada com sucesso.", "success");
+    setActiveTab("entries");
+    await loadEntries();
 }
 
 function renderEntries(): void {
@@ -276,6 +454,29 @@ async function copyUsername(entry: EntrySummary): Promise<boolean> {
     return true;
 }
 
+function setActiveTab(tab: "entries" | "create"): void {
+    const entriesActive = tab === "entries";
+    tabEntriesBtn.classList.toggle("active", entriesActive);
+    tabCreateBtn.classList.toggle("active", !entriesActive);
+
+    if (!sessionUnlocked) {
+        entriesPanel.classList.add("hidden");
+        createPanel.classList.add("hidden");
+        return;
+    }
+
+    entriesPanel.classList.toggle("hidden", !entriesActive);
+    createPanel.classList.toggle("hidden", entriesActive);
+}
+
+function clearCreateForm(): void {
+    createServiceInput.value = "";
+    createUsernameInput.value = "";
+    createPasswordInput.value = "";
+    createUrlInput.value = "";
+    createNotesInput.value = "";
+}
+
 async function lockSession(): Promise<void> {
     if (!(await ensureBackendAvailable())) {
         return;
@@ -289,6 +490,9 @@ async function lockSession(): Promise<void> {
 
     entriesCache = [];
     renderEntries();
+    sessionUnlocked = false;
+    syncSessionUi();
+    setInteractive(true);
     setStatus("Sessao encerrada.", "success");
 }
 
@@ -331,10 +535,38 @@ function setBackendState(state: "online" | "offline"): void {
 }
 
 function setInteractive(enabled: boolean): void {
-    unlockBtn.disabled = !enabled;
-    refreshBtn.disabled = !enabled;
-    lockBtn.disabled = !enabled;
+    unlockBtn.disabled = !enabled || !vaultExists;
+    createVaultBtn.disabled = !enabled || sessionUnlocked;
     passwordInput.disabled = !enabled;
+    tabEntriesBtn.disabled = !enabled || !sessionUnlocked;
+    tabCreateBtn.disabled = !enabled || !sessionUnlocked;
+    refreshBtn.disabled = !enabled || !sessionUnlocked;
+    lockBtn.disabled = !enabled || !sessionUnlocked;
+    createServiceInput.disabled = !enabled || !sessionUnlocked;
+    createUsernameInput.disabled = !enabled || !sessionUnlocked;
+    createPasswordInput.disabled = !enabled || !sessionUnlocked;
+    createUrlInput.disabled = !enabled || !sessionUnlocked;
+    createNotesInput.disabled = !enabled || !sessionUnlocked;
+    createEntryBtn.disabled = !enabled || !sessionUnlocked;
+    clearCreateBtn.disabled = !enabled || !sessionUnlocked;
+}
+
+function syncVaultUi(): void {
+    createVaultBtn.classList.remove("hidden");
+    createVaultBtn.textContent = "Cadastrar cofre";
+}
+
+function syncSessionUi(): void {
+    unlockPanel.classList.toggle("hidden", sessionUnlocked);
+    lockBtn.classList.toggle("hidden", !sessionUnlocked);
+
+    if (!sessionUnlocked) {
+        entriesPanel.classList.add("hidden");
+        createPanel.classList.add("hidden");
+        return;
+    }
+
+    setActiveTab(tabCreateBtn.classList.contains("active") ? "create" : "entries");
 }
 
 function toggleLoading(loading: boolean): void {
@@ -366,6 +598,9 @@ function mapFriendlyError(code: string): string {
     }
     if (code === "BAD_REQUEST") {
         return "Dados invalidos enviados para a API local.";
+    }
+    if (code === "CONFLICT") {
+        return "O recurso ja existe e nao pode ser criado novamente.";
     }
     if (code === "INVALID_RESPONSE") {
         return "Resposta invalida da API local.";

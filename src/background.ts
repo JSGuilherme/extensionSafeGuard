@@ -60,6 +60,34 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
       return { ok: true, data: { status: "ok" } };
     }
 
+    if (message.type === "GET_VAULT_STATUS") {
+      const vaultStatus = await apiClient.getVaultStatus();
+      return {
+        ok: true,
+        data: {
+          exists: vaultStatus.exists
+        }
+      };
+    }
+
+    if (message.type === "CREATE_VAULT") {
+      const createdVault = await apiClient.createVault({ master_password: message.masterPassword });
+      sessionState = {
+        token: createdVault.session_token,
+        expiresAtUnix: createdVault.expires_at_unix,
+        ttlSecs: createdVault.ttl_secs
+      };
+      await chrome.storage.session.set({ [SESSION_KEY]: sessionState });
+
+      return {
+        ok: true,
+        data: {
+          expiresAtUnix: createdVault.expires_at_unix,
+          ttlSecs: createdVault.ttl_secs
+        }
+      };
+    }
+
     if (message.type === "GET_SESSION_STATUS") {
       if (!sessionState) {
         return { ok: true, data: { unlocked: false } };
@@ -104,6 +132,25 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
       return {
         ok: true,
         data: { entries: listed.entries }
+      };
+    }
+
+    if (message.type === "CREATE_ENTRY") {
+      const activeSession = await requireSession();
+      const result = await apiClient.createEntry(activeSession.token, {
+        servico: message.service,
+        usuario: message.username,
+        password: message.password,
+        url: message.url,
+        notes: message.notes
+      });
+
+      return {
+        ok: true,
+        data: {
+          entryId: result.entryId,
+          created: result.created
+        }
       };
     }
 
