@@ -89,6 +89,7 @@ passwordInput.addEventListener("keydown", (event) => {
 void runInitialCheck();
 
 async function runInitialCheck(): Promise<void> {
+    console.info("[cofre-popup] runInitialCheck: iniciando verificacao do backend e da sessao.");
     setActiveTab("entries");
     const isAvailable = await ensureBackendAvailable();
     if (!isAvailable) {
@@ -97,34 +98,43 @@ async function runInitialCheck(): Promise<void> {
     }
 
     try {
+        console.info("[cofre-popup] runInitialCheck: consultando GET_VAULT_STATUS.");
         const vaultStatus = await sendMessage<VaultStatusUiResult>({ type: "GET_VAULT_STATUS" });
         if (!vaultStatus.ok) {
-            setStatus(mapFriendlyError(vaultStatus.error.code), "error");
-            return;
-        }
+            console.warn("[cofre-popup] runInitialCheck: GET_VAULT_STATUS retornou erro.", vaultStatus.error);
+            setStatus(
+                "Nao foi possivel validar o status do cofre agora. Tentando restaurar a sessao local...",
+                "error"
+            );
+        } else {
+            vaultExists = vaultStatus.data.exists;
+            console.info("[cofre-popup] runInitialCheck: status do cofre recebido.", {
+                exists: vaultExists
+            });
+            syncVaultUi();
 
-        vaultExists = vaultStatus.data.exists;
-        syncVaultUi();
-
-        if (!vaultExists) {
-            sessionUnlocked = false;
-            syncSessionUi();
-            setStatus("Nenhum cofre encontrado. Informe a senha mestra e clique em Cadastrar cofre.");
-            return;
+            if (!vaultExists) {
+                sessionUnlocked = false;
+                syncSessionUi();
+                setStatus("Nenhum cofre encontrado. Informe a senha mestra e clique em Cadastrar cofre.");
+                return;
+            }
         }
     } catch (error) {
         console.warn("Falha ao consultar status do cofre na inicializacao:", error);
-        setStatus("Nao foi possivel verificar se o cofre existe.", "error");
-        return;
+        setStatus("Nao foi possivel verificar se o cofre existe. Tentando restaurar a sessao local...", "error");
     }
 
     try {
+        console.info("[cofre-popup] runInitialCheck: consultando GET_SESSION_STATUS.");
         const sessionStatus = await sendMessage<SessionStatusUiResult>({ type: "GET_SESSION_STATUS" });
         if (!sessionStatus.ok) {
             console.warn("GET_SESSION_STATUS retornou erro:", sessionStatus.error.code);
             setStatus("Backend online. Pronto para desbloquear.");
             return;
         }
+
+        console.info("[cofre-popup] runInitialCheck: resposta de GET_SESSION_STATUS.", sessionStatus.data);
 
         if (sessionStatus.data.unlocked) {
             sessionUnlocked = true;
@@ -231,22 +241,36 @@ async function loadEntries(): Promise<void> {
         return;
     }
 
+    console.info("[cofre-popup] loadEntries: solicitando LIST_ENTRIES.");
     setStatus("Atualizando credenciais...");
 
     const response = await sendMessage<ListEntriesUiResult>({ type: "LIST_ENTRIES" });
     if (!response.ok) {
+        console.warn("[cofre-popup] loadEntries: LIST_ENTRIES retornou erro.", response.error);
         setStatus(mapFriendlyError(response.error.code), "error");
-        if (response.error.code === "SESSION_EXPIRED") {
+        if (response.error.code === "SESSION_EXPIRED" || response.error.code === "NOT_FOUND") {
+            console.warn("[cofre-popup] loadEntries: tratando erro como sessao invalida/expirada.");
             entriesCache = [];
             sessionUnlocked = false;
+            vaultExists = true;
+            syncVaultUi();
             syncSessionUi();
             setInteractive(true);
+            setStatus(
+                response.error.code === "NOT_FOUND"
+                    ? "Sessao invalida ou expirada. Faca unlock novamente."
+                    : "Sessao expirada. Faca unlock novamente.",
+                "error"
+            );
             renderEntries();
         }
         return;
     }
 
     entriesCache = await prioritizeEntriesByActivePage(response.data.entries);
+    console.info("[cofre-popup] loadEntries: entradas carregadas.", {
+        count: entriesCache.length
+    });
     renderEntries();
 
     if (entriesCache.length === 0) {

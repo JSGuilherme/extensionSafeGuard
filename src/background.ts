@@ -36,17 +36,32 @@ chrome.runtime.onMessage.addListener((message: RuntimeRequest, _sender, sendResp
 });
 
 async function initializeSession(): Promise<void> {
+  console.info("[cofre-bg] initializeSession: iniciando leitura da storage.session.");
   try {
     const result = await chrome.storage.session.get(SESSION_KEY);
     const fromStorage = result[SESSION_KEY] as SessionState | undefined;
+    console.info("[cofre-bg] initializeSession: valor bruto encontrado na storage.session.", {
+      hasSession: Boolean(fromStorage),
+      hasToken: Boolean(fromStorage?.token),
+      expiresAtUnix: fromStorage?.expiresAtUnix,
+      ttlSecs: fromStorage?.ttlSecs
+    });
     if (fromStorage && typeof fromStorage.token === "string") {
       if (!isSessionExpired(fromStorage.expiresAtUnix)) {
         sessionState = fromStorage;
+        console.info("[cofre-bg] initializeSession: sessao restaurada com sucesso.", {
+          expiresAtUnix: sessionState.expiresAtUnix,
+          ttlSecs: sessionState.ttlSecs
+        });
         return;
       }
+      console.info("[cofre-bg] initializeSession: sessao encontrada mas expirou. Limpando estado.", {
+        expiresAtUnix: fromStorage.expiresAtUnix
+      });
       await clearSessionState();
     }
   } catch {
+    console.warn("[cofre-bg] initializeSession: falha ao ler storage.session.");
     sessionState = null;
   }
 }
@@ -61,7 +76,9 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "GET_VAULT_STATUS") {
+      console.info("[cofre-bg] GET_VAULT_STATUS: consultando status do cofre na API local.");
       const vaultStatus = await apiClient.getVaultStatus();
+      console.info("[cofre-bg] GET_VAULT_STATUS: resposta recebida.", vaultStatus);
       return {
         ok: true,
         data: {
@@ -89,15 +106,25 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "GET_SESSION_STATUS") {
+      console.info("[cofre-bg] GET_SESSION_STATUS: consultando estado local da sessao.", {
+        hasSession: Boolean(sessionState),
+        expiresAtUnix: sessionState?.expiresAtUnix,
+        ttlSecs: sessionState?.ttlSecs
+      });
       if (!sessionState) {
+        console.info("[cofre-bg] GET_SESSION_STATUS: nenhuma sessao carregada.");
         return { ok: true, data: { unlocked: false } };
       }
 
       if (isSessionExpired(sessionState.expiresAtUnix)) {
+        console.info("[cofre-bg] GET_SESSION_STATUS: sessao expirada antes da resposta. Limpando estado.", {
+          expiresAtUnix: sessionState.expiresAtUnix
+        });
         await clearSessionState();
         return { ok: true, data: { unlocked: false } };
       }
 
+      console.info("[cofre-bg] GET_SESSION_STATUS: sessao valida e ativa.");
       return {
         ok: true,
         data: {
@@ -109,6 +136,7 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "UNLOCK") {
+      console.info("[cofre-bg] UNLOCK: iniciando unlock via API local.");
       const unlocked = await apiClient.unlock({ master_password: message.masterPassword });
       sessionState = {
         token: unlocked.session_token,
@@ -116,6 +144,10 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
         ttlSecs: unlocked.ttl_secs
       };
       await chrome.storage.session.set({ [SESSION_KEY]: sessionState });
+      console.info("[cofre-bg] UNLOCK: sessao persistida.", {
+        expiresAtUnix: sessionState.expiresAtUnix,
+        ttlSecs: sessionState.ttlSecs
+      });
 
       return {
         ok: true,
@@ -127,8 +159,16 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "LIST_ENTRIES") {
+      console.info("[cofre-bg] LIST_ENTRIES: requisicao recebida.");
       const activeSession = await requireSession();
+      console.info("[cofre-bg] LIST_ENTRIES: sessao valida confirmada.", {
+        expiresAtUnix: activeSession.expiresAtUnix,
+        ttlSecs: activeSession.ttlSecs
+      });
       const listed = await apiClient.listEntries(activeSession.token);
+      console.info("[cofre-bg] LIST_ENTRIES: API retornou entradas.", {
+        count: listed.entries.length
+      });
       return {
         ok: true,
         data: { entries: listed.entries }
@@ -176,7 +216,11 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "GET_ENTRY_PASSWORD_VALUE") {
+      console.info("[cofre-bg] GET_ENTRY_PASSWORD_VALUE: requisicao recebida.", {
+        entryId: message.entryId
+      });
       const activeSession = await requireSession();
+      console.info("[cofre-bg] GET_ENTRY_PASSWORD_VALUE: sessao valida confirmada.");
       const passwordResult = await apiClient.getEntryPassword(activeSession.token, message.entryId);
       return {
         ok: true,
@@ -225,10 +269,14 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
 
 async function requireSession(): Promise<SessionState> {
   if (!sessionState) {
+    console.warn("[cofre-bg] requireSession: sessionState ausente.");
     throw new ApiClientError("SESSION_EXPIRED", "Sessao expirada. Faca unlock novamente.");
   }
 
   if (isSessionExpired(sessionState.expiresAtUnix)) {
+    console.warn("[cofre-bg] requireSession: sessionState expirou. Limpando estado.", {
+      expiresAtUnix: sessionState.expiresAtUnix
+    });
     await clearSessionState();
     throw new ApiClientError("SESSION_EXPIRED", "Sessao expirada. Faca unlock novamente.");
   }
@@ -242,6 +290,7 @@ function isSessionExpired(expiresAtUnix: number): boolean {
 }
 
 async function clearSessionState(): Promise<void> {
+  console.info("[cofre-bg] clearSessionState: limpando sessao da memoria e storage.session.");
   sessionState = null;
   await chrome.storage.session.remove(SESSION_KEY);
 }
