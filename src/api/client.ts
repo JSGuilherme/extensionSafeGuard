@@ -1,5 +1,6 @@
 import type { AuthMode } from "../config.js";
 import type {
+  EntryNotesResponse,
   EntryPasswordResponse,
   HealthResponse,
   ListEntriesResponse,
@@ -11,6 +12,12 @@ import { ApiClientError } from "../types/api.js";
 import type { CreateEntryUiResult } from "../types/messages.js";
 
 interface CreateEntryApiResponse {
+  entry_id?: string;
+  entryId?: string;
+  created?: boolean;
+}
+
+interface EditEntryApiResponse {
   entry_id?: string;
   entryId?: string;
   created?: boolean;
@@ -153,6 +160,54 @@ export class LocalApiClient {
     };
   }
 
+  async editEntry(
+    sessionToken: string,
+    entryId: string,
+    body: {
+      servico?: string;
+      usuario?: string;
+      senha?: string;
+      url?: string;
+      notas?: string;
+    }
+  ): Promise<CreateEntryUiResult> {
+    const auth = this.buildAuth(sessionToken, {
+      pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}/${encodeURIComponent(entryId)}`,
+      pathWithBearer: `/api/v1/entries/${encodeURIComponent(entryId)}`
+    });
+
+    const payload = await this.requestJson<EditEntryApiResponse>(auth.path, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth.headers ?? {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    const updatedEntryId = payload.entry_id ?? payload.entryId;
+    if (typeof updatedEntryId !== "string" || typeof payload.created !== "boolean") {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de edicao.");
+    }
+
+    return {
+      entryId: updatedEntryId,
+      created: payload.created
+    };
+  }
+
+  async deleteEntry(sessionToken: string, entryId: string): Promise<void> {
+    const auth = this.buildAuth(sessionToken, {
+      pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}/${encodeURIComponent(entryId)}`,
+      pathWithBearer: `/api/v1/entries/${encodeURIComponent(entryId)}`
+    });
+
+    await this.requestNoContent(auth.path, {
+      method: "DELETE",
+      headers: auth.headers
+    });
+  }
+
   async getEntryPassword(sessionToken: string, entryId: string): Promise<EntryPasswordResponse> {
     const auth = this.buildAuth(sessionToken, {
       pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}/${encodeURIComponent(entryId)}/password`,
@@ -166,6 +221,24 @@ export class LocalApiClient {
 
     if (typeof payload.senha !== "string") {
       throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de senha.");
+    }
+
+    return payload;
+  }
+
+  async getEntryNotes(sessionToken: string, entryId: string): Promise<EntryNotesResponse> {
+    const auth = this.buildAuth(sessionToken, {
+      pathWithToken: `/api/v1/entries/${encodeURIComponent(sessionToken)}/${encodeURIComponent(entryId)}/notes`,
+      pathWithBearer: `/api/v1/entries/${encodeURIComponent(entryId)}/notes`
+    });
+
+    const payload = await this.requestJson<EntryNotesResponse>(auth.path, {
+      method: "GET",
+      headers: auth.headers
+    });
+
+    if (!(typeof payload.notas === "string" || payload.notas === null)) {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de notas.");
     }
 
     return payload;

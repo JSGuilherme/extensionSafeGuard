@@ -2,6 +2,9 @@ import type { EntrySummary } from "./types/api.js";
 import type {
     CreateVaultUiResult,
     CreateEntryUiResult,
+    DeleteEntryUiResult,
+    EditEntryUiResult,
+    GetEntryNotesUiResult,
     GetPasswordValueUiResult,
     GetPasswordUiResult,
     ListEntriesUiResult,
@@ -29,6 +32,7 @@ const createUrlInput = mustGetElement<HTMLInputElement>("create-url");
 const createNotesInput = mustGetElement<HTMLTextAreaElement>("create-notes");
 const createEntryBtn = mustGetElement<HTMLButtonElement>("create-entry-btn");
 const clearCreateBtn = mustGetElement<HTMLButtonElement>("clear-create-btn");
+const createPanelTitle = mustGetElement<HTMLHeadingElement>("create-panel-title");
 const entriesList = mustGetElement<HTMLUListElement>("entries-list");
 const statusText = mustGetElement<HTMLParagraphElement>("status");
 const backendStateText = mustGetElement<HTMLParagraphElement>("backend-state");
@@ -37,11 +41,23 @@ const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 const THEME_STORAGE_KEY = "safeguard_theme";
 
 type ThemeMode = "dark" | "light";
+type EntryFormMode = "create" | "edit";
+
+interface EditingEntryState {
+    entryId: string;
+    servico: string;
+    usuario: string;
+    url: string;
+    notas: string;
+}
 
 let entriesCache: EntrySummary[] = [];
 let sessionUnlocked = false;
 let vaultExists = true;
 let currentTheme: ThemeMode = "dark";
+let entryFormMode: EntryFormMode = "create";
+let editingEntryState: EditingEntryState | null = null;
+let notesLoadSequence = 0;
 
 void initializeTheme();
 syncSessionUi();
@@ -75,6 +91,12 @@ tabCreateBtn.addEventListener("click", () => {
 });
 
 clearCreateBtn.addEventListener("click", () => {
+    if (entryFormMode === "edit") {
+        clearCreateForm();
+        resetEntryFormMode();
+        return;
+    }
+
     clearCreateForm();
 });
 
@@ -101,6 +123,27 @@ void runInitialCheck();
 async function initializeTheme(): Promise<void> {
     const storedTheme = await loadStoredTheme();
     applyTheme(storedTheme ?? "dark");
+}
+
+function resetEntryFormMode(): void {
+    notesLoadSequence += 1;
+    entryFormMode = "create";
+    editingEntryState = null;
+    createPanelTitle.textContent = "Cadastrar chave";
+    createEntryBtn.textContent = "Salvar chave";
+    clearCreateBtn.textContent = "Limpar";
+}
+
+function updateEntryFormMode(mode: EntryFormMode): void {
+    entryFormMode = mode;
+    if (mode === "create") {
+        resetEntryFormMode();
+        return;
+    }
+
+    createPanelTitle.textContent = "Editar chave";
+    createEntryBtn.textContent = "Salvar alterações";
+    clearCreateBtn.textContent = "Cancelar edição";
 }
 
 async function loadStoredTheme(): Promise<ThemeMode | null> {
@@ -310,6 +353,7 @@ async function loadEntries(): Promise<void> {
             console.warn("[cofre-popup] loadEntries: tratando erro como sessao invalida/expirada.");
             entriesCache = [];
             sessionUnlocked = false;
+            resetEntryFormMode();
             vaultExists = true;
             syncVaultUi();
             syncSessionUi();
@@ -350,27 +394,106 @@ async function createEntry(): Promise<void> {
     const url = createUrlInput.value.trim();
     const notas = createNotesInput.value.trim();
 
-    if (!servico || !usuario || !senha) {
-        setStatus("Serviço, usuário e senha são obrigatórios.", "error");
+    if (entryFormMode === "create") {
+        if (!servico || !usuario || !senha) {
+            setStatus("Serviço, usuário e senha são obrigatórios.", "error");
+            return;
+        }
+
+        setStatus("Salvando chave...");
+        createEntryBtn.disabled = true;
+
+        let response: RuntimeResponse<CreateEntryUiResult>;
+        try {
+            response = await sendMessage<CreateEntryUiResult>({
+                type: "CREATE_ENTRY",
+                service: servico,
+                username: usuario,
+                password: senha,
+                url: url || undefined,
+                notes: notas || undefined
+            });
+        } catch (error) {
+            console.error("Falha ao cadastrar chave via background:", error);
+            setStatus("Falha ao cadastrar a chave.", "error");
+            createEntryBtn.disabled = false;
+            return;
+        }
+
+        createEntryBtn.disabled = false;
+
+        if (!response.ok) {
+            setStatus(mapFriendlyError(response.error.code), "error");
+            return;
+        }
+
+        clearCreateForm();
+        resetEntryFormMode();
+        setStatus(response.data.created ? "Chave cadastrada com sucesso." : "Chave atualizada com sucesso.", "success");
+        setActiveTab("entries");
+        await loadEntries();
         return;
     }
 
-    setStatus("Salvando chave...");
+    if (!editingEntryState) {
+        setStatus("Selecione uma chave para editar.", "error");
+        return;
+    }
+
+    const updatePayload: {
+        entryId: string;
+        service?: string;
+        username?: string;
+        password?: string;
+        url?: string;
+        notes?: string;
+    } = {
+        entryId: editingEntryState.entryId
+    };
+
+    if (servico && servico !== editingEntryState.servico) {
+        updatePayload.service = servico;
+    }
+
+    if (usuario && usuario !== editingEntryState.usuario) {
+        updatePayload.username = usuario;
+    }
+
+    if (senha) {
+        updatePayload.password = senha;
+    }
+
+    if (url !== editingEntryState.url) {
+        updatePayload.url = url;
+    }
+
+    if (notas !== editingEntryState.notas) {
+        updatePayload.notes = notas;
+    }
+
+    if (
+        updatePayload.service === undefined &&
+        updatePayload.username === undefined &&
+        updatePayload.password === undefined &&
+        updatePayload.url === undefined &&
+        updatePayload.notes === undefined
+    ) {
+        setStatus("Nenhuma alteracao detectada para salvar.", "error");
+        return;
+    }
+
+    setStatus("Salvando alteracoes...");
     createEntryBtn.disabled = true;
 
-    let response: RuntimeResponse<CreateEntryUiResult>;
+    let response: RuntimeResponse<EditEntryUiResult>;
     try {
-        response = await sendMessage<CreateEntryUiResult>({
-            type: "CREATE_ENTRY",
-            service: servico,
-            username: usuario,
-            password: senha,
-            url: url || undefined,
-            notes: notas || undefined
+        response = await sendMessage<EditEntryUiResult>({
+            type: "EDIT_ENTRY",
+            ...updatePayload
         });
     } catch (error) {
-        console.error("Falha ao cadastrar chave via background:", error);
-        setStatus("Falha ao cadastrar a chave.", "error");
+        console.error("Falha ao editar chave via background:", error);
+        setStatus("Falha ao editar a chave.", "error");
         createEntryBtn.disabled = false;
         return;
     }
@@ -383,6 +506,8 @@ async function createEntry(): Promise<void> {
     }
 
     clearCreateForm();
+    resetEntryFormMode();
+    editingEntryState = null;
     setStatus(response.data.created ? "Chave cadastrada com sucesso." : "Chave atualizada com sucesso.", "success");
     setActiveTab("entries");
     await loadEntries();
@@ -426,13 +551,120 @@ function renderEntries(): void {
             void copyUsername(entry);
         });
 
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "entry-action secondary";
+        editButton.textContent = "Editar";
+        editButton.addEventListener("click", () => {
+            void startEditEntry(entry);
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "entry-action danger";
+        deleteButton.textContent = "Excluir";
+        deleteButton.addEventListener("click", () => {
+            void deleteEntry(entry);
+        });
+
         const meta = document.createElement("div");
         meta.className = "entry-meta";
         meta.textContent = entry.url ?? "Sem URL cadastrada";
 
-        actions.append(autofillButton, copyButton, copyUserButton);
+        actions.append(autofillButton, copyButton, copyUserButton, editButton, deleteButton);
         item.append(title, actions, meta);
         entriesList.append(item);
+    }
+}
+
+async function deleteEntry(entry: EntrySummary): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
+        return;
+    }
+
+    const confirmed = window.confirm(`Excluir a chave ${entry.servico} - ${entry.usuario}? Esta ação não pode ser desfeita.`);
+    if (!confirmed) {
+        return;
+    }
+
+    setStatus(`Excluindo chave ${entry.servico}...`);
+
+    let response: RuntimeResponse<DeleteEntryUiResult>;
+    try {
+        response = await sendMessage<DeleteEntryUiResult>({
+            type: "DELETE_ENTRY",
+            entryId: entry.id
+        });
+    } catch (error) {
+        console.error("Falha ao excluir chave via background:", error);
+        setStatus("Falha ao excluir a chave.", "error");
+        return;
+    }
+
+    if (!response.ok) {
+        setStatus(mapFriendlyError(response.error.code), "error");
+        return;
+    }
+
+    if (editingEntryState?.entryId === entry.id) {
+        clearCreateForm();
+        resetEntryFormMode();
+    }
+
+    entriesCache = entriesCache.filter((item) => item.id !== entry.id);
+    renderEntries();
+    setStatus("Chave excluida com sucesso.", "success");
+    if (entriesCache.length === 0) {
+        setStatus("Nenhuma credencial encontrada.");
+    }
+}
+
+async function startEditEntry(entry: EntrySummary): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
+        return;
+    }
+
+    editingEntryState = {
+        entryId: entry.id,
+        servico: entry.servico,
+        usuario: entry.usuario,
+        url: entry.url ?? "",
+        notas: ""
+    };
+
+    updateEntryFormMode("edit");
+    createServiceInput.value = entry.servico;
+    createUsernameInput.value = entry.usuario;
+    createPasswordInput.value = "";
+    createUrlInput.value = entry.url ?? "";
+    createNotesInput.value = "";
+    setActiveTab("create");
+    setStatus(`Editando chave ${entry.servico}. Carregando notas...`);
+
+    const sequence = ++notesLoadSequence;
+    try {
+        const response = await sendMessage<GetEntryNotesUiResult>({
+            type: "GET_ENTRY_NOTES",
+            entryId: entry.id
+        });
+
+        if (sequence !== notesLoadSequence) {
+            return;
+        }
+
+        if (!response.ok) {
+            console.warn("GET_ENTRY_NOTES retornou erro:", response.error.code);
+            setStatus("Editando chave. Nao foi possivel carregar as notas agora.", "error");
+            return;
+        }
+
+        const notes = response.data.notes ?? "";
+        editingEntryState.notas = notes;
+        createNotesInput.value = notes;
+        setStatus("Chave carregada para edicao.", "success");
+    } catch (error) {
+        console.warn("Falha ao carregar notas para edicao:", error);
+        setStatus("Editando chave. Nao foi possivel carregar as notas agora.", "error");
     }
 }
 
@@ -463,6 +695,22 @@ async function useCredential(entry: EntrySummary): Promise<void> {
     }
 
     if (response.data.filled) {
+        if (response.data.postActionAttempted && response.data.postActionExecuted) {
+            setStatus("Autofill enviado e click automatico executado.", "success");
+            return;
+        }
+
+        if (response.data.postActionReason === "PARSE_INVALID") {
+            setStatus("Autofill enviado. A acao das notas foi ignorada por formato invalido.");
+            return;
+        }
+
+        if (response.data.postActionAttempted && !response.data.postActionExecuted) {
+            const actionReason = describePostActionReason(response.data.postActionReason ?? "CLICK_ERROR");
+            setStatus(`Autofill enviado. Aviso: ${actionReason}`);
+            return;
+        }
+
         setStatus("Autofill enviado para a aba ativa.", "success");
     } else {
         const reason = response.data.reason ?? "UNKNOWN";
@@ -573,6 +821,7 @@ async function lockSession(): Promise<void> {
     entriesCache = [];
     renderEntries();
     sessionUnlocked = false;
+    resetEntryFormMode();
     syncSessionUi();
     setInteractive(true);
     setStatus("Sessao encerrada.", "success");
@@ -728,6 +977,26 @@ function mapAutofillFailureMessage(reason: string): string {
     }
 
     return "Senha obtida, mas nao foi possivel preencher automaticamente nesta pagina.";
+}
+
+function describePostActionReason(reason: string): string {
+    if (reason === "ELEMENT_NOT_FOUND") {
+        return "elemento alvo do click nao foi encontrado na pagina";
+    }
+    if (reason === "CLICK_ERROR") {
+        return "houve erro ao executar o click configurado nas notas";
+    }
+    if (reason === "AUTOFILL_FAILED") {
+        return "a acao nao foi executada porque o autofill falhou";
+    }
+    if (reason === "PARSE_INVALID") {
+        return "o comando das notas esta em formato invalido";
+    }
+    if (reason === "NOT_CONFIGURED") {
+        return "nenhuma acao de notas foi configurada";
+    }
+
+    return "a acao configurada nas notas nao foi executada";
 }
 
 async function writeToClipboard(text: string): Promise<boolean> {

@@ -15,7 +15,18 @@ export type RuntimeRequest =
       url?: string;
       notes?: string;
     }
+  | {
+      type: "EDIT_ENTRY";
+      entryId: string;
+      service?: string;
+      username?: string;
+      password?: string;
+      url?: string;
+      notes?: string;
+    }
+  | { type: "DELETE_ENTRY"; entryId: string }
   | { type: "GET_ENTRY_PASSWORD"; entryId: string; username?: string }
+  | { type: "GET_ENTRY_NOTES"; entryId: string }
   | { type: "GET_ENTRY_PASSWORD_VALUE"; entryId: string }
   | { type: "LOCK_SESSION" };
 
@@ -52,10 +63,26 @@ export interface CreateEntryUiResult {
   created: boolean;
 }
 
+export interface EditEntryUiResult {
+  entryId: string;
+  created: boolean;
+}
+
+export interface DeleteEntryUiResult {
+  deleted: boolean;
+}
+
+export interface GetEntryNotesUiResult {
+  notes: string | null;
+}
+
 export interface GetPasswordUiResult {
   filled: boolean;
   reason?: string;
   reasonDetail?: string;
+  postActionAttempted?: boolean;
+  postActionExecuted?: boolean;
+  postActionReason?: string;
 }
 
 export interface GetPasswordValueUiResult {

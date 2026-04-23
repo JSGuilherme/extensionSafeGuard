@@ -1,6 +1,6 @@
-# CofreSenhaRust Browser Extension (MV3)
+# Safe Guard Browser Extension (MV3)
 
-Extensao de navegador (Chrome/Edge) para integrar com a API local do projeto CofreSenhaRust.
+Extensao de navegador (Chrome/Edge) para integrar com a API local do projeto Safe Guard.
 
 ## Objetivo
 

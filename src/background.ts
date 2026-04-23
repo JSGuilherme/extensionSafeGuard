@@ -9,6 +9,28 @@ interface SessionState {
   ttlSecs: number;
 }
 
+type PostActionReason =
+  | "NOT_CONFIGURED"
+  | "PARSE_INVALID"
+  | "AUTOFILL_FAILED"
+  | "ELEMENT_NOT_FOUND"
+  | "CLICK_ERROR"
+  | "EXECUTED";
+
+interface AutofillPostAction {
+  type: "click";
+  selector: string;
+}
+
+interface AutofillResponsePayload {
+  filled?: boolean;
+  reason?: string;
+  reasonDetail?: string;
+  postActionAttempted?: boolean;
+  postActionExecuted?: boolean;
+  postActionReason?: PostActionReason;
+}
+
 const apiClient = new LocalApiClient({
   baseUrl: API_BASE_URL,
   authMode: API_AUTH_MODE
@@ -204,23 +226,84 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
       };
     }
 
+    if (message.type === "EDIT_ENTRY") {
+      console.info("[cofre-bg] EDIT_ENTRY: requisicao recebida.", {
+        entryId: message.entryId,
+        hasService: Boolean(message.service),
+        hasUsername: Boolean(message.username),
+        hasPassword: Boolean(message.password),
+        hasUrl: Boolean(message.url),
+        hasNotes: Boolean(message.notes)
+      });
+      const activeSession = await requireSession();
+      const result = await apiClient.editEntry(activeSession.token, message.entryId, {
+        servico: message.service,
+        usuario: message.username,
+        senha: message.password,
+        url: message.url,
+        notas: message.notes
+      });
+
+      console.info("[cofre-bg] EDIT_ENTRY: API retornou sucesso.", {
+        entryId: result.entryId,
+        created: result.created
+      });
+
+      return {
+        ok: true,
+        data: {
+          entryId: result.entryId,
+          created: result.created
+        }
+      };
+    }
+
+    if (message.type === "DELETE_ENTRY") {
+      console.info("[cofre-bg] DELETE_ENTRY: requisicao recebida.", {
+        entryId: message.entryId
+      });
+      const activeSession = await requireSession();
+      await apiClient.deleteEntry(activeSession.token, message.entryId);
+      console.info("[cofre-bg] DELETE_ENTRY: exclusao concluida.");
+      return {
+        ok: true,
+        data: {
+          deleted: true
+        }
+      };
+    }
+
     if (message.type === "GET_ENTRY_PASSWORD") {
       console.info("[cofre-bg] Iniciando GET_ENTRY_PASSWORD.");
       const activeSession = await requireSession();
       console.info("[cofre-bg] Sessao valida para GET_ENTRY_PASSWORD.");
       const passwordResult = await apiClient.getEntryPassword(activeSession.token, message.entryId);
+      const notesResult = await getEntryNotesSafely(activeSession.token, message.entryId);
+      const postAction = parseNotesPostAction(notesResult.notes);
       console.info("[cofre-bg] Senha obtida da API local.");
       const autofillResult = await sendAutofillToActiveTab({
         password: passwordResult.senha,
-        username: message.username
+        username: message.username,
+        postAction: postAction.action
       });
       console.info("[cofre-bg] Resultado envio autofill para aba ativa:", autofillResult);
+
+      const postActionReason =
+        postAction.action != null
+          ? autofillResult.postActionReason
+          : postAction.parseReason !== "NOT_CONFIGURED"
+            ? postAction.parseReason
+            : autofillResult.postActionReason;
+
       return {
         ok: true,
         data: {
           filled: autofillResult.filled,
           reason: autofillResult.reason,
-          reasonDetail: autofillResult.reasonDetail
+          reasonDetail: autofillResult.reasonDetail,
+          postActionAttempted: autofillResult.postActionAttempted,
+          postActionExecuted: autofillResult.postActionExecuted,
+          postActionReason
         }
       };
     }
@@ -236,6 +319,21 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
         ok: true,
         data: {
           password: passwordResult.senha
+        }
+      };
+    }
+
+    if (message.type === "GET_ENTRY_NOTES") {
+      console.info("[cofre-bg] GET_ENTRY_NOTES: requisicao recebida.", {
+        entryId: message.entryId
+      });
+      const activeSession = await requireSession();
+      console.info("[cofre-bg] GET_ENTRY_NOTES: sessao valida confirmada.");
+      const notesResult = await apiClient.getEntryNotes(activeSession.token, message.entryId);
+      return {
+        ok: true,
+        data: {
+          notes: notesResult.notas
         }
       };
     }
@@ -316,10 +414,79 @@ async function clearSessionState(): Promise<void> {
   await chrome.storage.session.remove(SESSION_KEY);
 }
 
+async function getEntryNotesSafely(
+  sessionToken: string,
+  entryId: string
+): Promise<{ notes: string | null }> {
+  try {
+    const notesResult = await apiClient.getEntryNotes(sessionToken, entryId);
+    return { notes: notesResult.notas };
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      console.warn("[cofre-bg] Nao foi possivel obter notas para post-action.", {
+        entryId,
+        code: error.code,
+        status: error.status
+      });
+    } else {
+      console.warn("[cofre-bg] Nao foi possivel obter notas para post-action.", {
+        entryId,
+        error
+      });
+    }
+    return { notes: null };
+  }
+}
+
+function parseNotesPostAction(notes: string | null): {
+  action?: AutofillPostAction;
+  parseReason: PostActionReason;
+} {
+  if (!notes) {
+    return { parseReason: "NOT_CONFIGURED" };
+  }
+
+  const trimmed = notes.trim();
+  if (!trimmed) {
+    return { parseReason: "NOT_CONFIGURED" };
+  }
+
+  const match = /^click\(\s*(['\"])(.+?)\1\s*\)$/i.exec(trimmed);
+  if (!match) {
+    return { parseReason: "PARSE_INVALID" };
+  }
+
+  const selectorRaw = match[2];
+  if (!selectorRaw) {
+    return { parseReason: "PARSE_INVALID" };
+  }
+
+  const selector = selectorRaw.trim();
+  if (!selector) {
+    return { parseReason: "PARSE_INVALID" };
+  }
+
+  return {
+    action: {
+      type: "click",
+      selector
+    },
+    parseReason: "EXECUTED"
+  };
+}
+
 async function sendAutofillToActiveTab(payload: {
   username?: string;
   password: string;
-}): Promise<{ filled: boolean; reason?: string; reasonDetail?: string }> {
+  postAction?: AutofillPostAction;
+}): Promise<{
+  filled: boolean;
+  reason?: string;
+  reasonDetail?: string;
+  postActionAttempted?: boolean;
+  postActionExecuted?: boolean;
+  postActionReason?: PostActionReason;
+}> {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!activeTab?.id) {
     return { filled: false, reason: "ACTIVE_TAB_NOT_FOUND", reasonDetail: "Aba ativa nao encontrada." };
@@ -329,7 +496,7 @@ async function sendAutofillToActiveTab(payload: {
     const response = (await chrome.tabs.sendMessage(activeTab.id, {
       type: "AUTOFILL_CREDENTIAL",
       payload
-    })) as { filled?: boolean; reason?: string; reasonDetail?: string } | undefined;
+    })) as AutofillResponsePayload | undefined;
 
     if (!response) {
       return {
@@ -342,7 +509,10 @@ async function sendAutofillToActiveTab(payload: {
     return {
       filled: Boolean(response.filled),
       reason: response.reason,
-      reasonDetail: response.reasonDetail
+      reasonDetail: response.reasonDetail,
+      postActionAttempted: response.postActionAttempted,
+      postActionExecuted: response.postActionExecuted,
+      postActionReason: response.postActionReason
     };
   } catch (error) {
     const reasonDetail = error instanceof Error ? error.message : "Falha desconhecida ao enviar mensagem para a aba.";
@@ -357,7 +527,7 @@ async function sendAutofillToActiveTab(payload: {
         const retryResponse = (await chrome.tabs.sendMessage(activeTab.id, {
           type: "AUTOFILL_CREDENTIAL",
           payload
-        })) as { filled?: boolean; reason?: string; reasonDetail?: string } | undefined;
+        })) as AutofillResponsePayload | undefined;
 
         if (!retryResponse) {
           return {
@@ -370,7 +540,10 @@ async function sendAutofillToActiveTab(payload: {
         return {
           filled: Boolean(retryResponse.filled),
           reason: retryResponse.reason,
-          reasonDetail: retryResponse.reasonDetail
+          reasonDetail: retryResponse.reasonDetail,
+          postActionAttempted: retryResponse.postActionAttempted,
+          postActionExecuted: retryResponse.postActionExecuted,
+          postActionReason: retryResponse.postActionReason
         };
       } catch (injectError) {
         const injectDetail = injectError instanceof Error ? injectError.message : "Falha ao injetar content script.";

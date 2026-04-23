@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "CofreSenhaRust Helper",
-  "description": "Integracao local entre navegador e API do CofreSenhaRust",
+  "name": "Safe Guard",
+  "description": "Integracao local entre navegador e API do Safe Guard",
   "version": "0.1.0",
   "permissions": ["storage", "tabs", "activeTab", "clipboardWrite", "scripting"],
   "host_permissions": ["http://127.0.0.1:5474/*", "<all_urls>"],
@@ -10,7 +10,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "CofreSenhaRust",
+    "default_title": "Safe Guard",
     "default_popup": "popup.html",
     "default_icon": {
       "512": "icons/logo-safe-guard.png"

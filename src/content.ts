@@ -3,6 +3,10 @@ interface AutofillMessage {
   payload: {
     username?: string;
     password: string;
+    postAction?: {
+      type: "click";
+      selector: string;
+    };
   };
 }
 
@@ -11,9 +15,21 @@ type AutofillReason =
   | "USERNAME_FIELD_NOT_FOUND"
   | "NO_FILLABLE_FIELDS";
 
+type PostActionReason =
+  | "NOT_CONFIGURED"
+  | "PARSE_INVALID"
+  | "AUTOFILL_FAILED"
+  | "ELEMENT_NOT_FOUND"
+  | "CLICK_ERROR"
+  | "EXECUTED";
+
 interface AutofillResult {
   filled: boolean;
   reason?: AutofillReason;
+  reasonDetail?: string;
+  postActionAttempted?: boolean;
+  postActionExecuted?: boolean;
+  postActionReason?: PostActionReason;
 }
 
 chrome.runtime.onMessage.addListener((message: AutofillMessage, _sender, sendResponse) => {
@@ -22,12 +38,16 @@ chrome.runtime.onMessage.addListener((message: AutofillMessage, _sender, sendRes
   }
 
   console.info("[cofre-content] Iniciando autofill na pagina atual.");
-  const result = autofill(message.payload.username, message.payload.password);
+  const result = autofill(message.payload.username, message.payload.password, message.payload.postAction);
   console.info("[cofre-content] Resultado do autofill:", result);
   sendResponse(result);
 });
 
-function autofill(username: string | undefined, password: string): AutofillResult {
+function autofill(
+  username: string | undefined,
+  password: string,
+  postAction?: { type: "click"; selector: string }
+): AutofillResult {
   const { selected: passwordField, all: passwordCandidates, fillable: fillablePasswordCandidates } =
     findPasswordField();
   const { selected: usernameField, all: usernameCandidates, fillable: fillableUsernameCandidates } =
@@ -52,15 +72,15 @@ function autofill(username: string | undefined, password: string): AutofillResul
   const canFillUsername = !hasUsernameToFill || Boolean(usernameField);
 
   if (!canFillPassword && !canFillUsername) {
-    return { filled: false, reason: "NO_FILLABLE_FIELDS" };
+    return { filled: false, reason: "NO_FILLABLE_FIELDS", postActionReason: "AUTOFILL_FAILED" };
   }
 
   if (!canFillPassword) {
-    return { filled: false, reason: "PASSWORD_FIELD_NOT_FOUND" };
+    return { filled: false, reason: "PASSWORD_FIELD_NOT_FOUND", postActionReason: "AUTOFILL_FAILED" };
   }
 
   if (hasUsernameToFill && !canFillUsername) {
-    return { filled: false, reason: "USERNAME_FIELD_NOT_FOUND" };
+    return { filled: false, reason: "USERNAME_FIELD_NOT_FOUND", postActionReason: "AUTOFILL_FAILED" };
   }
 
   if (username && usernameField) {
@@ -71,7 +91,81 @@ function autofill(username: string | undefined, password: string): AutofillResul
     fillInput(passwordField, password);
   }
 
-  return { filled: true };
+  const postActionResult = runPostAction(postAction);
+
+  return {
+    filled: true,
+    postActionAttempted: postActionResult.attempted,
+    postActionExecuted: postActionResult.executed,
+    postActionReason: postActionResult.reason,
+    reasonDetail: postActionResult.reasonDetail
+  };
+}
+
+function runPostAction(action?: { type: "click"; selector: string }): {
+  attempted: boolean;
+  executed: boolean;
+  reason: PostActionReason;
+  reasonDetail?: string;
+} {
+  if (!action) {
+    return {
+      attempted: false,
+      executed: false,
+      reason: "NOT_CONFIGURED"
+    };
+  }
+
+  if (action.type !== "click" || typeof action.selector !== "string" || action.selector.trim().length === 0) {
+    return {
+      attempted: false,
+      executed: false,
+      reason: "PARSE_INVALID"
+    };
+  }
+
+  const selector = action.selector.trim();
+
+  let target: Element | null;
+  try {
+    target = document.querySelector(selector);
+  } catch (error) {
+    return {
+      attempted: true,
+      executed: false,
+      reason: "CLICK_ERROR",
+      reasonDetail: error instanceof Error ? error.message : "Seletor CSS invalido para click."
+    };
+  }
+
+  if (!target) {
+    return {
+      attempted: true,
+      executed: false,
+      reason: "ELEMENT_NOT_FOUND"
+    };
+  }
+
+  try {
+    if (target instanceof HTMLElement) {
+      target.click();
+    } else {
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    }
+
+    return {
+      attempted: true,
+      executed: true,
+      reason: "EXECUTED"
+    };
+  } catch (error) {
+    return {
+      attempted: true,
+      executed: false,
+      reason: "CLICK_ERROR",
+      reasonDetail: error instanceof Error ? error.message : "Falha ao executar click no elemento alvo."
+    };
+  }
 }
 
 function findPasswordField(): {

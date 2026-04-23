@@ -33,6 +33,10 @@ export interface EntryPasswordResponse {
   senha: string;
 }
 
+export interface EntryNotesResponse {
+  notas: string | null;
+}
+
 export type ApiErrorCode =
   | "API_OFFLINE"
   | "INVALID_RESPONSE"

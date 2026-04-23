@@ -140,7 +140,36 @@ Este documento descreve o contrato inicial da API local usada para integracao co
 - 400: servico, usuario ou senha ausentes
 - 401: sessao invalida ou expirada
 
-### 7. Excluir Chave
+### 7. Editar Chave por ID
+
+- Metodo: PUT
+- Rota: /api/v1/entries/{session_token}/{entry_id}
+- Body (todos os campos sao opcionais):
+
+```json
+{
+  "servico": "github",
+  "usuario": "novo-usuario",
+  "senha": "nova-senha",
+  "url": "https://github.com/novo-login",
+  "notas": "notas atualizadas"
+}
+```
+
+- Resposta 200:
+
+```json
+{
+  "entry_id": "8ad74fca-97fc-4cff-a0d7-a381f7189b29",
+  "created": false
+}
+```
+
+- Erros:
+- 401: sessao invalida ou expirada
+- 404: entrada nao encontrada
+
+### 8. Excluir Chave
 
 - Metodo: DELETE
 - Rota: /api/v1/entries/{session_token}/{entry_id}
@@ -150,7 +179,7 @@ Este documento descreve o contrato inicial da API local usada para integracao co
 - 401: sessao invalida ou expirada
 - 404: entrada nao encontrada
 
-### 8. Obter Senha por ID
+### 9. Obter Senha por ID
 
 - Metodo: GET
 - Rota: /api/v1/entries/{session_token}/{entry_id}/password
@@ -166,7 +195,25 @@ Este documento descreve o contrato inicial da API local usada para integracao co
 - 401: sessao invalida ou expirada
 - 404: entrada nao encontrada
 
-### 9. Lock da Sessao
+### 10. Obter Notas por ID
+
+- Metodo: GET
+- Rota: /api/v1/entries/{session_token}/{entry_id}/notes
+- Resposta 200:
+
+```json
+{
+  "notas": "texto opcional"
+}
+```
+
+- Se a entrada nao tiver notas, retorna `"notas": null`.
+
+- Erros:
+- 401: sessao invalida ou expirada
+- 404: entrada nao encontrada
+
+### 11. Lock da Sessao
 
 - Metodo: POST
 - Rota: /api/v1/lock/{session_token}
