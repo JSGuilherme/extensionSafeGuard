@@ -92,10 +92,10 @@ body {
 }
 
 .app-content {
-  flex: 1; 
-  display: flex;
-  flex-direction: column;
-  min-height: 0;  
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .app-header {
@@ -206,7 +206,8 @@ textarea {
     border: 1px solid var(--border);
     background: var(--field-bg);
     color: var(--text);
-    border-radius: 8px;
+    corner-shape: superellipse(-infinity);
+    border-radius: 4px;
     padding: 8px;
     resize: vertical;
     font-family: inherit;
@@ -223,7 +224,8 @@ input {
     border: 1px solid var(--border);
     background: var(--field-bg);
     color: var(--text);
-    border-radius: 8px;
+    corner-shape: superellipse(-infinity);
+    border-radius: 4px;
     padding: 8px;
     margin-bottom: 8px;
 }
@@ -236,7 +238,8 @@ textarea::placeholder {
 button {
     width: 100%;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
+    corner-shape: superellipse(-infinity);
     padding: 8px 10px;
     background: var(--accent);
     color: #ffffff;
@@ -299,11 +302,12 @@ button:disabled {
     min-height: 0;
     overflow-y: auto;
     margin-top: 10px;
+    padding: 0px 5px;
 }
 
 .entries-list {
     list-style: none;
-    margin: 10px 0 0;
+    margin: 0px;
     padding: 0;
     overflow: auto;
     flex: 1;
@@ -384,6 +388,7 @@ textarea::-webkit-scrollbar-thumb:hover {
 .entry-action {
     width: 100%;
     text-align: center;
+    border-radius: 5px;
     border: 1px dashed var(--border);
     background: rgba(91, 140, 255, 0.1);
     color: var(--text);
@@ -417,6 +422,7 @@ textarea::-webkit-scrollbar-thumb:hover {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text);
+    margin-top: auto;
 }
 
 .status.error {
