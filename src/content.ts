@@ -71,16 +71,8 @@ function autofill(
   const canFillPassword = Boolean(passwordField);
   const canFillUsername = !hasUsernameToFill || Boolean(usernameField);
 
-  if (!canFillPassword && !canFillUsername) {
+  if (!canFillPassword && !(hasUsernameToFill && canFillUsername)) {
     return { filled: false, reason: "NO_FILLABLE_FIELDS", postActionReason: "AUTOFILL_FAILED" };
-  }
-
-  if (!canFillPassword) {
-    return { filled: false, reason: "PASSWORD_FIELD_NOT_FOUND", postActionReason: "AUTOFILL_FAILED" };
-  }
-
-  if (hasUsernameToFill && !canFillUsername) {
-    return { filled: false, reason: "USERNAME_FIELD_NOT_FOUND", postActionReason: "AUTOFILL_FAILED" };
   }
 
   if (username && usernameField) {

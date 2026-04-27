@@ -233,7 +233,7 @@ async function runInitialCheck(): Promise<void> {
         const sessionStatus = await sendMessage<SessionStatusUiResult>({ type: "GET_SESSION_STATUS" });
         if (!sessionStatus.ok) {
             console.warn("GET_SESSION_STATUS retornou erro:", sessionStatus.error.code);
-            setStatus("Backend online. Pronto para desbloquear.");
+            setStatus("Backend online. Pronto para desbloquear.", "success");
             return;
         }
 
@@ -253,7 +253,7 @@ async function runInitialCheck(): Promise<void> {
         console.warn("Falha ao consultar status da sessao na inicializacao:", error);
     }
 
-    setStatus("Backend online. Pronto para desbloquear.");
+    setStatus("Backend online. Pronto para desbloquear.", "success");
 }
 
 async function unlock(): Promise<void> {
@@ -382,7 +382,7 @@ async function loadEntries(): Promise<void> {
         return;
     }
 
-    setStatus(`${entriesCache.length} credencial(is) carregada(s).`, "success");
+    setStatus(`${entriesCache.length} credencial(is) carregada(s).`);
 }
 
 async function createEntry(): Promise<void> {
@@ -801,7 +801,7 @@ function setActiveTab(tab: "entries" | "create"): void {
     createPanel.classList.toggle("hidden", entriesActive);
     if (tab === "entries") {
         if (entriesCache) {
-            setStatus(`${entriesCache.length} credencial(is) carregada(s).`, "success");
+            setStatus(`${entriesCache.length} credencial(is) carregada(s).`);
         } else {
             setStatus("Nenhuma credencial encontrada.");
         }
@@ -861,7 +861,7 @@ async function ensureBackendAvailable(options?: { showReadyStatus?: boolean }): 
     setInteractive(true);
     setBackendState("online");
     if (options?.showReadyStatus) {
-        setStatus("Backend online. Pronto para desbloquear.");
+        setStatus("Backend online. Pronto para desbloquear.", "success");
     }
 
     return true;
