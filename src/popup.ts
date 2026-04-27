@@ -94,6 +94,8 @@ clearCreateBtn.addEventListener("click", () => {
     if (entryFormMode === "edit") {
         clearCreateForm();
         resetEntryFormMode();
+        setActiveTab("entries");
+        setStatus("Edição de chave cancelada.", "neutral");
         return;
     }
 
@@ -797,6 +799,15 @@ function setActiveTab(tab: "entries" | "create"): void {
 
     entriesPanel.classList.toggle("hidden", !entriesActive);
     createPanel.classList.toggle("hidden", entriesActive);
+    if (tab === "entries") {
+        if (entriesCache) {
+            setStatus(`${entriesCache.length} credencial(is) carregada(s).`, "success");
+        } else {
+            setStatus("Nenhuma credencial encontrada.");
+        }
+    } else {
+        setStatus("Preencha os campos para cadastrar uma nova chave.");
+    }
 }
 
 function clearCreateForm(): void {
@@ -894,6 +905,7 @@ function syncSessionUi(): void {
     if (!sessionUnlocked) {
         entriesPanel.classList.add("hidden");
         createPanel.classList.add("hidden");
+        passwordInput.focus();
         return;
     }
 

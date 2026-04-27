@@ -123,6 +123,15 @@ body {
     align-self: center;
 }
 
+.app-header .theme-toggle-btn {
+    corner-shape: round;
+}
+
+.app-header .theme-toggle-btn:last-child {
+    corner-top-right-shape: round;
+    corner-bottom-right-shape: round;
+}
+
 .app-header h1 {
     margin: 0;
     font-size: 1.2rem;
@@ -138,7 +147,6 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-bottom: 10px;
 }
 
 .tab-btn {
@@ -155,12 +163,22 @@ body {
     border-color: transparent;
 }
 
+.tabs .tab-btn:first-child {
+    corner-top-left-shape: round;
+}
+
+.tabs .tab-btn:last-child {
+    corner-top-right-shape: round;
+}
+
 .unlock-panel,
 .entries-panel,
 .create-panel {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 4px;
+    corner-top-shape: superellipse(-infinity);
+    corner-bottom-shape: round;
     padding: 10px;
     box-shadow: var(--shadow);
     backdrop-filter: blur(10px);
@@ -274,7 +292,7 @@ button:disabled {
 }
 
 .entries-header {
-    margin-bottom: auto;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -370,8 +388,19 @@ textarea::-webkit-scrollbar-thumb:hover {
 .entry-item {
     background: var(--surface-3);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 4px;
+    corner-shape: superellipse(-infinity);
     padding: 8px;
+}
+
+.entries-list .entry-item:first-child {
+    corner-top-left-shape: round;
+    corner-top-right-shape: round;
+}
+
+.entries-list .entry-item:last-child {
+    corner-bottom-left-shape: round;
+    corner-bottom-right-shape: round;
 }
 
 .entry-title {
@@ -408,6 +437,16 @@ textarea::-webkit-scrollbar-thumb:hover {
 .entry-action.danger:hover {
     background: rgba(255, 107, 129, 0.22);
     color: var(--colorHover);
+}
+
+.entry-actions .entry-action:first-child {
+    corner-top-left-shape: round;
+    corner-bottom-left-shape: round;
+}
+
+.entry-actions .entry-action:last-child {
+    corner-top-right-shape: round;
+    corner-bottom-right-shape: round;
 }
 
 .entry-meta {
