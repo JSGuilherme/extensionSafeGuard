@@ -1,53 +1,69 @@
 :root {
-    --bg: #0b1220;
-    --surface: rgba(16, 24, 40, 0.92);
-    --surface-2: rgba(28, 39, 63, 0.92);
-    --surface-3: rgba(8, 15, 28, 0.95);
-    --text: #e5eefc;
+    /* --- TEMA DARK: CYBER ORANGE --- */
+    --bg: #0e0a05; /* Fundo quase preto com toque quente */
+    --surface: rgba(33, 23, 10, 0.92);
+    --surface-2: rgba(54, 38, 16, 0.92);
+    --surface-3: rgba(26, 18, 8, 0.95);
+    --text: #fff2e6;
     --colorHover: #ffffff;
-    --muted: #90a4c3;
-    --accent: #5b8cff;
-    --accent-hover: #3f74ff;
-    --secondary-hover: rgba(144, 164, 195, 0.12);
-    --danger: #ff6b81;
-    --ok: #35c48a;
-    --border: rgba(144, 164, 195, 0.18);
-    --shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
-    --field-bg: rgba(7, 12, 24, 0.72);
-    --placeholder: #6d7f9f;
-    --bg-glow-1: rgba(91, 140, 255, 0.22);
-    --bg-glow-2: rgba(53, 196, 138, 0.14);
-    --bg-top: #0c1424;
-    --bg-bottom: #0b1220;
-    --scrollbar-color: rgba(91, 140, 255, 0.92);
-    --scrollbar-track: rgba(8, 15, 28, 0.72);
-    --scrollbar-thumb: linear-gradient(180deg, rgba(91, 140, 255, 0.9), rgba(53, 196, 138, 0.78));
-    --scrollbar-thumb-hover: linear-gradient(180deg, rgba(91, 140, 255, 1), rgba(53, 196, 138, 0.92));
+    --muted: #b09984;
+    
+    /* Cores do Logo / Ação */
+    --accent: #FF9800;        /* Laranja Meio (Ação Principal) */
+    --accent-hover: #FFB74D;  /* Laranja Topo (Hover) */
+    --accent-dark: #E65100;   /* Laranja Base (Contornos/Profundidade) */
+    
+    --secondary-hover: rgba(255, 152, 0, 0.12);
+    --danger: #ff5252;
+    --ok: #4caf50;
+    --border: rgba(230, 81, 0, 0.25);
+    --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    --field-bg: rgba(20, 15, 10, 0.72);
+    --placeholder: #8d7a68;
+    
+    /* Efeito de brilho laranja */
+    --bg-glow-1: rgba(230, 81, 0, 0.18);
+    --bg-glow-2: rgba(255, 152, 0, 0.12);
+    
+    --bg-top: #1a120b;
+    --bg-bottom: #0e0a05;
+    
+    /* Scrollbar baseada no tema alaranjado */
+    --scrollbar-color: rgba(255, 152, 0, 0.8);
+    --scrollbar-track: rgba(26, 18, 8, 0.72);
+    --scrollbar-thumb: linear-gradient(180deg, #FFB74D, #FF9800);
+    --scrollbar-thumb-hover: linear-gradient(180deg, #FFB74D, #E65100);
 }
 
 html[data-theme="light"] {
-    --bg: #edf2f9;
+    /* --- TEMA LIGHT: SOFT ORANGE --- */
+    --bg: #fffbf7;
     --surface: rgba(255, 255, 255, 0.9);
-    --surface-2: rgba(236, 242, 252, 0.95);
-    --surface-3: rgba(244, 248, 255, 0.95);
-    --text: #1d2a3b;
+    --surface-2: #fff3e0;
+    --surface-3: #ffe0b2;
+    --text: #4e342e;
     --colorHover: #ffffff;
-    --muted: #4e637b;
-    --accent: #2f6bf2;
-    --accent-hover: #1f5ce5;
-    --secondary-hover: rgba(29, 42, 59, 0.75);
-    --border: rgba(29, 42, 59, 0.15);
-    --shadow: 0 16px 40px rgba(35, 52, 81, 0.16);
+    --muted: #8d6e63;
+    
+    --accent: #fb8c00;
+    --accent-hover: #f57c00;
+    
+    --secondary-hover: rgba(78, 52, 46, 0.08);
+    --border: rgba(230, 81, 0, 0.15);
+    --shadow: 0 16px 40px rgba(230, 81, 0, 0.12);
     --field-bg: rgba(255, 255, 255, 0.94);
-    --placeholder: #6c7f96;
-    --bg-glow-1: rgba(58, 117, 255, 0.18);
-    --bg-glow-2: rgba(53, 196, 138, 0.11);
+    --placeholder: #a1887f;
+    
+    --bg-glow-1: rgba(255, 183, 77, 0.2);
+    --bg-glow-2: rgba(255, 152, 0, 0.1);
+    
     --bg-top: #ffffff;
-    --bg-bottom: #ffffff;
-    --scrollbar-color: rgba(47, 107, 242, 0.82);
-    --scrollbar-track: rgba(180, 200, 230, 0.48);
-    --scrollbar-thumb: linear-gradient(180deg, rgba(47, 107, 242, 0.84), rgba(53, 196, 138, 0.7));
-    --scrollbar-thumb-hover: linear-gradient(180deg, rgba(47, 107, 242, 0.95), rgba(53, 196, 138, 0.82));
+    --bg-bottom: #fff8f1;
+    
+    --scrollbar-color: rgba(251, 140, 0, 0.6);
+    --scrollbar-track: rgba(255, 224, 178, 0.3);
+    --scrollbar-thumb: linear-gradient(180deg, #ffb74d, #fb8c00);
+    --scrollbar-thumb-hover: linear-gradient(180deg, #fb8c00, #e65100);
 }
 
 * {
@@ -104,6 +120,8 @@ body {
     height: 64px;
     object-fit: contain;
     flex: 0 0 auto;
+    /* Adiciona um leve brilho para destacar o logo branco se necessário */
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
 }
 
 .app-header-text {
@@ -484,12 +502,15 @@ textarea::-webkit-scrollbar-thumb:hover {
 }
 
 .entry-action {
-    width: 100%;
-    text-align: center;
-    border-radius: 5px;
+    background: rgba(255, 152, 0, 0.1); /* Laranja suave */
     border: 1px dashed var(--border);
-    background: rgba(91, 140, 255, 0.1);
-    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+.entry-action:hover {
+    background: var(--accent);
+    color: #fff;
+    border-style: solid;
 }
 
 .entry-action.secondary {
