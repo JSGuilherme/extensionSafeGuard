@@ -522,9 +522,19 @@ function renderEntries(): void {
         const item = document.createElement("li");
         item.className = "entry-item";
 
+        const titleDiv = document.createElement("div");
+        titleDiv.className = "entry-title";
+
         const title = document.createElement("div");
-        title.className = "entry-title";
         title.textContent = `${entry.servico} - ${entry.usuario}`;
+
+        const meta = document.createElement("a");
+        meta.className = "entry-meta";
+        meta.textContent = entry.url ?? "Sem URL cadastrada";
+        if(entry.url){
+            meta.setAttribute("href", entry.url);
+            meta.setAttribute("target", "_blank");
+        }
 
         const actions = document.createElement("div");
         actions.className = "entry-actions";
@@ -569,12 +579,9 @@ function renderEntries(): void {
             void deleteEntry(entry);
         });
 
-        const meta = document.createElement("div");
-        meta.className = "entry-meta";
-        meta.textContent = entry.url ?? "Sem URL cadastrada";
-
+        titleDiv.append(title, meta);
         actions.append(autofillButton, copyButton, copyUserButton, editButton, deleteButton);
-        item.append(title, actions, meta);
+        item.append(titleDiv, actions);
         entriesList.append(item);
     }
 }
