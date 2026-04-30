@@ -37,7 +37,10 @@ const entriesList = mustGetElement<HTMLUListElement>("entries-list");
 const statusText = mustGetElement<HTMLParagraphElement>("status");
 const backendStateText = mustGetElement<HTMLParagraphElement>("backend-state");
 const themeToggleBtn = mustGetElement<HTMLButtonElement>("theme-toggle-btn");
+const notesInfoBtn = mustGetElement<HTMLButtonElement>("notes-info-btn");
+const notesHelp = mustGetElement<HTMLElement>("notes-help");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
+const PAGE_METADATA_TIMEOUT_MS = 1500;
 const THEME_STORAGE_KEY = "safeguard_theme";
 
 type ThemeMode = "dark" | "light";
@@ -49,6 +52,16 @@ interface EditingEntryState {
     usuario: string;
     url: string;
     notas: string;
+}
+
+interface ActivePageMetadata {
+    title: string | null;
+    manifestHref: string | null;
+}
+
+interface ActivePageCredentialFields {
+    usernameValue: string | null;
+    passwordValue: string | null;
 }
 
 let entriesCache: EntrySummary[] = [];
@@ -80,6 +93,34 @@ lockBtn.addEventListener("click", () => {
 
 themeToggleBtn.addEventListener("click", () => {
     void toggleTheme();
+});
+
+notesInfoBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleNotesHelp();
+});
+
+document.addEventListener("click", (event) => {
+    if (notesHelp.classList.contains("hidden")) {
+        return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Node)) {
+        return;
+    }
+
+    if (notesHelp.contains(target) || notesInfoBtn.contains(target)) {
+        return;
+    }
+
+    setNotesHelpVisible(false);
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        setNotesHelpVisible(false);
+    }
 });
 
 tabEntriesBtn.addEventListener("click", () => {
@@ -191,6 +232,15 @@ async function toggleTheme(): Promise<void> {
     await persistTheme(nextTheme);
 }
 
+function toggleNotesHelp(): void {
+    setNotesHelpVisible(notesHelp.classList.contains("hidden"));
+}
+
+function setNotesHelpVisible(visible: boolean): void {
+    notesHelp.classList.toggle("hidden", !visible);
+    notesInfoBtn.setAttribute("aria-expanded", String(visible));
+}
+
 async function runInitialCheck(): Promise<void> {
     console.info("[cofre-popup] runInitialCheck: iniciando verificacao do backend e da sessao.");
     setActiveTab("entries");
@@ -242,7 +292,7 @@ async function runInitialCheck(): Promise<void> {
         if (sessionStatus.data.unlocked) {
             sessionUnlocked = true;
             syncSessionUi();
-            setStatus("Sessao ativa restaurada.", "success");
+            setStatus(`Sessao ativa restaurada. ${formatSessionWindow(sessionStatus.data)}`, "success");
             await loadEntries();
             return;
         }
@@ -289,7 +339,7 @@ async function unlock(): Promise<void> {
     }
 
     passwordInput.value = "";
-    setStatus(`Sessao desbloqueada. TTL: ${response.data.ttlSecs}s`, "success");
+    setStatus(`Sessao desbloqueada. ${formatSessionWindow(response.data)}`, "success");
     sessionUnlocked = true;
     syncSessionUi();
     setInteractive(true);
@@ -335,7 +385,7 @@ async function createVault(): Promise<void> {
     syncVaultUi();
     syncSessionUi();
     setInteractive(true);
-    setStatus(`Cofre cadastrado e sessao desbloqueada. TTL: ${response.data.ttlSecs}s`, "success");
+    setStatus(`Cofre cadastrado e sessao desbloqueada. ${formatSessionWindow(response.data)}`, "success");
     await loadEntries();
 }
 
@@ -705,7 +755,7 @@ async function useCredential(entry: EntrySummary): Promise<void> {
 
     if (response.data.filled) {
         if (response.data.postActionAttempted && response.data.postActionExecuted) {
-            setStatus("Autofill enviado e click automatico executado.", "success");
+            setStatus("Autofill enviado e acoes automaticas executadas.", "success");
             return;
         }
 
@@ -814,6 +864,7 @@ function setActiveTab(tab: "entries" | "create"): void {
         }
     } else {
         setStatus("Preencha os campos para cadastrar uma nova chave.");
+        void prefillCreateFieldsFromActiveTab();
     }
 }
 
@@ -823,6 +874,224 @@ function clearCreateForm(): void {
     createPasswordInput.value = "";
     createUrlInput.value = "";
     createNotesInput.value = "";
+}
+
+async function prefillCreateFieldsFromActiveTab(): Promise<void> {
+    if (entryFormMode !== "create") {
+        return;
+    }
+
+    const activeTab = await getActiveTabInfo();
+    const activeUrl = activeTab?.url ?? null;
+    if (!activeTab?.id || !normalizeCredentialUrl(activeUrl)) {
+        return;
+    }
+
+    const [credentialUrl, serviceName, credentialFields] = await Promise.all([
+        Promise.resolve(normalizeCredentialUrl(activeUrl)),
+        getServiceNameFromActivePage(activeTab.id, activeUrl),
+        readActivePageCredentialFields(activeTab.id)
+    ]);
+
+    if (entryFormMode !== "create") {
+        return;
+    }
+
+    if (credentialUrl && !createUrlInput.value.trim()) {
+        createUrlInput.value = credentialUrl;
+    }
+
+    if (serviceName && !createServiceInput.value.trim()) {
+        createServiceInput.value = serviceName;
+    }
+
+    if (credentialFields?.usernameValue && !createUsernameInput.value.trim()) {
+        createUsernameInput.value = credentialFields.usernameValue;
+    }
+
+    if (credentialFields?.passwordValue && !createPasswordInput.value) {
+        createPasswordInput.value = credentialFields.passwordValue;
+    }
+}
+
+function normalizeCredentialUrl(rawUrl: string | null): string | null {
+    if (!rawUrl) {
+        return null;
+    }
+
+    try {
+        const url = new URL(rawUrl);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return null;
+        }
+
+        return url.origin;
+    } catch {
+        return null;
+    }
+}
+
+async function getServiceNameFromActivePage(tabId: number, activeUrl: string | null): Promise<string | null> {
+    const metadata = await readActivePageMetadata(tabId);
+    const manifestName = await getManifestServiceName(metadata?.manifestHref ?? null);
+    if (manifestName) {
+        return manifestName;
+    }
+
+    const title = normalizeServiceName(metadata?.title ?? null);
+    if (title) {
+        return title;
+    }
+
+    return getHostnameServiceName(activeUrl);
+}
+
+async function readActivePageMetadata(tabId: number): Promise<ActivePageMetadata | null> {
+    try {
+        const [result] = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: () => {
+                const manifestLink = document.querySelector<HTMLLinkElement>('link[rel~="manifest"]');
+                const manifestHref = manifestLink?.href ? new URL(manifestLink.href, document.baseURI).href : null;
+
+                return {
+                    title: document.title || null,
+                    manifestHref
+                };
+            }
+        });
+
+        return (result?.result ?? null) as ActivePageMetadata | null;
+    } catch (error) {
+        console.warn("Falha ao ler metadados da aba ativa:", error);
+        return null;
+    }
+}
+
+async function readActivePageCredentialFields(tabId: number): Promise<ActivePageCredentialFields | null> {
+    try {
+        const [result] = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: () => {
+                function isReadableInput(input: HTMLInputElement): boolean {
+                    if (input.disabled || input.readOnly || input.type === "hidden") {
+                        return false;
+                    }
+
+                    const style = window.getComputedStyle(input);
+                    if (style.display === "none" || style.visibility === "hidden") {
+                        return false;
+                    }
+
+                    return input.getClientRects().length > 0;
+                }
+
+                function normalizeFieldValue(value: string): string | null {
+                    const normalized = value.replace(/\s+/g, " ").trim();
+                    return normalized || null;
+                }
+
+                function scoreUsernameField(input: HTMLInputElement): number {
+                    const text = [
+                        input.name,
+                        input.id,
+                        input.autocomplete,
+                        input.placeholder,
+                        input.getAttribute("aria-label")
+                    ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+
+                    let score = 0;
+                    if (text.includes("user")) score += 3;
+                    if (text.includes("mail")) score += 2;
+                    if (text.includes("login")) score += 2;
+                    if (text.includes("nome")) score += 1;
+                    return score;
+                }
+
+                const usernameCandidates = Array.from(
+                    document.querySelectorAll<HTMLInputElement>(
+                        "input[type='text'], input[type='email'], input:not([type]), input[name='user']"
+                    )
+                )
+                    .filter((input) => isReadableInput(input) && normalizeFieldValue(input.value) !== null)
+                    .sort((a, b) => scoreUsernameField(b) - scoreUsernameField(a));
+
+                const passwordCandidate = Array.from(
+                    document.querySelectorAll<HTMLInputElement>("input[type='password']")
+                ).find((input) => isReadableInput(input) && input.value.length > 0);
+
+                return {
+                    usernameValue: normalizeFieldValue(usernameCandidates[0]?.value ?? ""),
+                    passwordValue: passwordCandidate?.value || null
+                };
+            }
+        });
+
+        return (result?.result ?? null) as ActivePageCredentialFields | null;
+    } catch (error) {
+        console.warn("Falha ao ler campos de credencial da aba ativa:", error);
+        return null;
+    }
+}
+
+async function getManifestServiceName(manifestHref: string | null): Promise<string | null> {
+    if (!manifestHref) {
+        return null;
+    }
+
+    try {
+        const response = await fetchWithTimeout(manifestHref, PAGE_METADATA_TIMEOUT_MS);
+        if (!response.ok) {
+            return null;
+        }
+
+        const manifest = (await response.json()) as { short_name?: unknown; name?: unknown };
+        return normalizeServiceName(manifest.short_name) ?? normalizeServiceName(manifest.name);
+    } catch (error) {
+        console.warn("Falha ao carregar manifest da aba ativa:", error);
+        return null;
+    }
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, {
+            credentials: "omit",
+            signal: controller.signal
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function normalizeServiceName(value: unknown): string | null {
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized || null;
+}
+
+function getHostnameServiceName(rawUrl: string | null): string | null {
+    if (!rawUrl) {
+        return null;
+    }
+
+    try {
+        const url = new URL(rawUrl);
+        const hostname = url.hostname.replace(/^www\./i, "");
+        const [label] = hostname.split(".");
+        return normalizeServiceName(label);
+    } catch {
+        return null;
+    }
 }
 
 async function lockSession(): Promise<void> {
@@ -958,6 +1227,44 @@ function mapFriendlyError(code: string): string {
     return "Falha inesperada na comunicacao com a API local.";
 }
 
+function formatSessionWindow(session: { ttlSecs?: number; maxTtlSecs?: number }): string {
+    const inactivity = formatDuration(session.ttlSecs);
+    const maximum = formatDuration(session.maxTtlSecs);
+
+    if (inactivity && maximum) {
+        return `Inatividade: ${inactivity}. Limite maximo: ${maximum}.`;
+    }
+
+    if (inactivity) {
+        return `Inatividade: ${inactivity}.`;
+    }
+
+    return "Sessao ativa.";
+}
+
+function formatDuration(totalSeconds: number | undefined): string | null {
+    if (typeof totalSeconds !== "number" || !Number.isFinite(totalSeconds)) {
+        return null;
+    }
+
+    if (totalSeconds < 60) {
+        return `${Math.max(0, Math.floor(totalSeconds))}s`;
+    }
+
+    const totalMinutes = Math.round(totalSeconds / 60);
+    if (totalMinutes < 60) {
+        return `${totalMinutes}min`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (minutes === 0) {
+        return `${hours}h`;
+    }
+
+    return `${hours}h ${minutes}min`;
+}
+
 function describeAutofillReason(reason: string): string {
     if (reason === "PASSWORD_FIELD_NOT_FOUND") {
         return "campo de senha nao encontrado na pagina";
@@ -1039,9 +1346,14 @@ async function prioritizeEntriesByActivePage(entries: EntrySummary[]): Promise<E
 }
 
 async function getActiveTabUrl(): Promise<string | null> {
+    const activeTab = await getActiveTabInfo();
+    return activeTab?.url ?? null;
+}
+
+async function getActiveTabInfo(): Promise<chrome.tabs.Tab | null> {
     try {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        return activeTab?.url ?? null;
+        return activeTab ?? null;
     } catch {
         return null;
     }

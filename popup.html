@@ -79,7 +79,25 @@
           </div>
 
           <div class="create-notes-wrap">
-            <label for="create-notes">Notas</label>
+            <div class="field-label-row notes-label-row">
+              <label for="create-notes">Notas</label>
+              <button
+                id="notes-info-btn"
+                class="info-btn"
+                type="button"
+                aria-label="Ajuda sobre automacao nas notas"
+                aria-expanded="false"
+                aria-controls="notes-help"
+              >
+                i
+              </button>
+            </div>
+            <div id="notes-help" class="notes-help hidden" role="note">
+              <strong>Automacao apos autofill</strong>
+              <p>Use comandos nas notas para clicar em elementos depois de preencher usuario e senha.</p>
+              <code>click("#loginPersistence"); click("#loginButton");</code>
+              <p>Os cliques rodam em ordem. Se um seletor falhar, os proximos nao sao executados.</p>
+            </div>
             <textarea id="create-notes" rows="3" placeholder="Opcional"></textarea>
           </div>
 

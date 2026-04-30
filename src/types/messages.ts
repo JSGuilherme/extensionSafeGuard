@@ -36,7 +36,9 @@ export type RuntimeResponse<T> =
 
 export interface UnlockUiResult {
   expiresAtUnix: number;
+  maxExpiresAtUnix: number;
   ttlSecs: number;
+  maxTtlSecs: number;
 }
 
 export interface VaultStatusUiResult {
@@ -45,13 +47,17 @@ export interface VaultStatusUiResult {
 
 export interface CreateVaultUiResult {
   expiresAtUnix: number;
+  maxExpiresAtUnix: number;
   ttlSecs: number;
+  maxTtlSecs: number;
 }
 
 export interface SessionStatusUiResult {
   unlocked: boolean;
   expiresAtUnix?: number;
+  maxExpiresAtUnix?: number;
   ttlSecs?: number;
+  maxTtlSecs?: number;
 }
 
 export interface ListEntriesUiResult {

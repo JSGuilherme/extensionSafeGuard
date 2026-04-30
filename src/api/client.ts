@@ -4,6 +4,7 @@ import type {
   EntryPasswordResponse,
   HealthResponse,
   ListEntriesResponse,
+  TouchSessionResponse,
   UnlockRequest,
   UnlockResponse,
   VaultStatusResponse
@@ -69,9 +70,31 @@ export class LocalApiClient {
     if (
       typeof payload.session_token !== "string" ||
       typeof payload.expires_at_unix !== "number" ||
-      typeof payload.ttl_secs !== "number"
+      typeof payload.max_expires_at_unix !== "number" ||
+      typeof payload.ttl_secs !== "number" ||
+      typeof payload.max_ttl_secs !== "number"
     ) {
       throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de unlock.");
+    }
+
+    return payload;
+  }
+
+  async touchSession(sessionToken: string): Promise<TouchSessionResponse> {
+    const payload = await this.requestJson<TouchSessionResponse>(
+      `/api/v1/session/${encodeURIComponent(sessionToken)}/touch`,
+      {
+        method: "POST"
+      }
+    );
+
+    if (
+      typeof payload.expires_at_unix !== "number" ||
+      typeof payload.max_expires_at_unix !== "number" ||
+      typeof payload.ttl_secs !== "number" ||
+      typeof payload.max_ttl_secs !== "number"
+    ) {
+      throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de renovacao da sessao.");
     }
 
     return payload;
@@ -99,7 +122,9 @@ export class LocalApiClient {
     if (
       typeof payload.session_token !== "string" ||
       typeof payload.expires_at_unix !== "number" ||
-      typeof payload.ttl_secs !== "number"
+      typeof payload.max_expires_at_unix !== "number" ||
+      typeof payload.ttl_secs !== "number" ||
+      typeof payload.max_ttl_secs !== "number"
     ) {
       throw new ApiClientError("INVALID_RESPONSE", "Resposta invalida no endpoint de criacao de cofre.");
     }

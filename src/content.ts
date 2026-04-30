@@ -3,11 +3,13 @@ interface AutofillMessage {
   payload: {
     username?: string;
     password: string;
-    postAction?: {
-      type: "click";
-      selector: string;
-    };
+    postAction?: AutofillPostAction[];
   };
+}
+
+interface AutofillPostAction {
+  type: "click";
+  selector: string;
 }
 
 type AutofillReason =
@@ -32,7 +34,15 @@ interface AutofillResult {
   postActionReason?: PostActionReason;
 }
 
-chrome.runtime.onMessage.addListener((message: AutofillMessage, _sender, sendResponse) => {
+const globalState = globalThis as typeof globalThis & {
+  __safeGuardAutofillListener?: (message: AutofillMessage, _sender: chrome.runtime.MessageSender, sendResponse: (response?: AutofillResult) => void) => void;
+};
+
+if (globalState.__safeGuardAutofillListener) {
+  chrome.runtime.onMessage.removeListener(globalState.__safeGuardAutofillListener);
+}
+
+globalState.__safeGuardAutofillListener = (message: AutofillMessage, _sender, sendResponse) => {
   if (message.type !== "AUTOFILL_CREDENTIAL") {
     return;
   }
@@ -41,12 +51,14 @@ chrome.runtime.onMessage.addListener((message: AutofillMessage, _sender, sendRes
   const result = autofill(message.payload.username, message.payload.password, message.payload.postAction);
   console.info("[cofre-content] Resultado do autofill:", result);
   sendResponse(result);
-});
+};
+
+chrome.runtime.onMessage.addListener(globalState.__safeGuardAutofillListener);
 
 function autofill(
   username: string | undefined,
   password: string,
-  postAction?: { type: "click"; selector: string }
+  postAction?: AutofillPostAction[]
 ): AutofillResult {
   const { selected: passwordField, all: passwordCandidates, fillable: fillablePasswordCandidates } =
     findPasswordField();
@@ -94,13 +106,13 @@ function autofill(
   };
 }
 
-function runPostAction(action?: { type: "click"; selector: string }): {
+function runPostAction(actions?: AutofillPostAction[]): {
   attempted: boolean;
   executed: boolean;
   reason: PostActionReason;
   reasonDetail?: string;
 } {
-  if (!action) {
+  if (!actions || actions.length === 0) {
     return {
       attempted: false,
       executed: false,
@@ -108,11 +120,35 @@ function runPostAction(action?: { type: "click"; selector: string }): {
     };
   }
 
+  for (const [index, action] of actions.entries()) {
+    const result = runClickAction(action, index);
+    if (!result.executed) {
+      return result;
+    }
+  }
+
+  return {
+    attempted: true,
+    executed: true,
+    reason: "EXECUTED"
+  };
+}
+
+function runClickAction(
+  action: AutofillPostAction,
+  index: number
+): {
+  attempted: boolean;
+  executed: boolean;
+  reason: PostActionReason;
+  reasonDetail?: string;
+} {
   if (action.type !== "click" || typeof action.selector !== "string" || action.selector.trim().length === 0) {
     return {
-      attempted: false,
+      attempted: true,
       executed: false,
-      reason: "PARSE_INVALID"
+      reason: "PARSE_INVALID",
+      reasonDetail: `Acao ${index + 1} esta em formato invalido.`
     };
   }
 
@@ -126,7 +162,10 @@ function runPostAction(action?: { type: "click"; selector: string }): {
       attempted: true,
       executed: false,
       reason: "CLICK_ERROR",
-      reasonDetail: error instanceof Error ? error.message : "Seletor CSS invalido para click."
+      reasonDetail:
+        error instanceof Error
+          ? `Acao ${index + 1}: ${error.message}`
+          : `Acao ${index + 1}: seletor CSS invalido para click.`
     };
   }
 
@@ -134,7 +173,8 @@ function runPostAction(action?: { type: "click"; selector: string }): {
     return {
       attempted: true,
       executed: false,
-      reason: "ELEMENT_NOT_FOUND"
+      reason: "ELEMENT_NOT_FOUND",
+      reasonDetail: `Acao ${index + 1}: elemento nao encontrado para ${selector}.`
     };
   }
 
@@ -155,7 +195,10 @@ function runPostAction(action?: { type: "click"; selector: string }): {
       attempted: true,
       executed: false,
       reason: "CLICK_ERROR",
-      reasonDetail: error instanceof Error ? error.message : "Falha ao executar click no elemento alvo."
+      reasonDetail:
+        error instanceof Error
+          ? `Acao ${index + 1}: ${error.message}`
+          : `Acao ${index + 1}: falha ao executar click no elemento alvo.`
     };
   }
 }

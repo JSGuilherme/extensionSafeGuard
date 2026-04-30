@@ -10,7 +10,16 @@ export interface UnlockRequest {
 export interface UnlockResponse {
   session_token: string;
   expires_at_unix: number;
+  max_expires_at_unix: number;
   ttl_secs: number;
+  max_ttl_secs: number;
+}
+
+export interface TouchSessionResponse {
+  expires_at_unix: number;
+  max_expires_at_unix: number;
+  ttl_secs: number;
+  max_ttl_secs: number;
 }
 
 export interface VaultStatusResponse {
