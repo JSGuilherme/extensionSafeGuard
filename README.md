@@ -1,5 +1,10 @@
 # Safe Guard Browser Extension (MV3)
 
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
+![Chrome Extension](https://img.shields.io/badge/Chrome%20Extension-4285F4?style=flat&logo=googlechrome&logoColor=white)
+![Manifest V3](https://img.shields.io/badge/Manifest%20V3-FF4400?style=flat)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
+
 Extensao de navegador (Chrome/Edge) para integrar com a API local do projeto Safe Guard.
 
 ## Objetivo
@@ -12,6 +17,21 @@ Fluxo minimo implementado:
 4. Usuario seleciona uma credencial.
 5. Extensao busca a senha via `GET /api/v1/entries/:session_token/:entry_id/password`.
 6. Extensao envia autofill para a aba ativa.
+
+### Interface da extensao
+![Safe Guard Extension Interface](src/prints/frontend_extension.png)
+
+## Backend
+
+Este projeto funciona em conjunto com a aplicacao backend Safe Guard:
+
+- **Repositorio**: [safe-guard (Backend)](https://github.com/JSGuilherme/safe-guard)
+- **Funcao**: API local que fornece credenciais e gerenciamento de sessoes
+- **Endpoint local**: `http://127.0.0.1:5474`
+
+Certifique-se de que o backend esta rodando localmente antes de usar a extensao.
+
+![Backend Tray](src/prints/backend_tray.png)
 
 ## Estrutura de pastas
 
@@ -52,6 +72,16 @@ npm run build
 2. Ativar "Modo de desenvolvedor".
 3. Clicar em "Carregar sem empacotamento".
 4. Selecionar a pasta `dist/`.
+
+## Demo
+### Fluxo de uso da extensao
+
+<video width="100%" controls>
+  <source src="src/prints/safeGuard.mp4" type="video/mp4">
+  Seu navegador não suporta a tag de vídeo.
+</video>
+
+A extensao permite desbloquear credenciais com a senha mestra e preenchê-las automaticamente em campos de login.
 
 ## Permissoes usadas
 
