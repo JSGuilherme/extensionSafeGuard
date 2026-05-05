@@ -75,7 +75,7 @@ npm run build
 
 ## Demo
 ### Fluxo de uso da extensao
-
+![Safe Guard Extension Demo](src/prints/safeGuard.gif)
 <video width="100%" controls>
   <source src="src/prints/safeGuard.mp4" type="video/mp4">
   Seu navegador não suporta a tag de vídeo.
