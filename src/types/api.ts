@@ -46,6 +46,20 @@ export interface EntryNotesResponse {
   notas: string | null;
 }
 
+export interface ChangePasswordRequest {
+  new_master_password: string;
+  confirm_new_master_password: string;
+}
+
+export interface ChangePasswordResponse {
+  session_token: string;
+  expires_at_unix: number;
+  max_expires_at_unix: number;
+  ttl_secs: number;
+  max_ttl_secs: number;
+  invalidated_sessions: number;
+}
+
 export type ApiErrorCode =
   | "API_OFFLINE"
   | "INVALID_RESPONSE"

@@ -544,3 +544,126 @@ textarea::-webkit-scrollbar-thumb:hover {
 #create-entry-btn {
     margin-top: auto;
 }
+
+/* Modal styles */
+dialog {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 0;
+    box-shadow: var(--shadow);
+    max-width: 90%;
+}
+
+dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.change-password-modal {
+    width: 100%;
+    max-width: 400px;
+}
+
+.modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+html[data-theme="dark"] .modal-content {
+    background: #0f1a2e;
+    color: var(--text);
+}
+
+html[data-theme="light"] .modal-content {
+    background: #ffffff;
+    color: var(--text);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.close-btn:hover {
+    color: var(--colorHover);
+    background: rgba(144, 164, 195, 0.08);
+    border-radius: 4px;
+}
+
+.modal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0;
+    color: var(--text);
+}
+
+.form-group input {
+    padding: 10px;
+    border: 1px solid var(--border);
+    background: var(--field-bg);
+    color: var(--text);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.form-group input::placeholder {
+    color: var(--placeholder);
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.2);
+}
+
+html[data-theme="light"] .form-group input:focus {
+    box-shadow: 0 0 0 2px rgba(47, 107, 242, 0.15);
+}
+
+.modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}

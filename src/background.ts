@@ -356,6 +356,27 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
       return { ok: true, data: { locked: true } };
     }
 
+    if (message.type === "CHANGE_MASTER_PASSWORD") {
+      console.info("[cofre-bg] CHANGE_MASTER_PASSWORD: requisicao recebida.");
+      const activeSession = await requireSession();
+      const result = await apiClient.changePassword(activeSession.token, {
+        new_master_password: message.newMasterPassword,
+        confirm_new_master_password: message.confirmNewMasterPassword
+      });
+      sessionState = sessionStateFromUnlock(result);
+      await persistSessionState(sessionState);
+      console.info("[cofre-bg] CHANGE_MASTER_PASSWORD: sucesso.", {
+        invalidatedSessions: result.invalidated_sessions
+      });
+      return {
+        ok: true,
+        data: {
+          ...sessionUiResult(sessionState),
+          invalidatedSessions: result.invalidated_sessions
+        }
+      };
+    }
+
     return { ok: false, error: { code: "UNKNOWN_ACTION", message: "Acao nao suportada." } };
   } catch (error) {
     if (error instanceof ApiClientError) {

@@ -28,7 +28,12 @@ export type RuntimeRequest =
   | { type: "GET_ENTRY_PASSWORD"; entryId: string; username?: string }
   | { type: "GET_ENTRY_NOTES"; entryId: string }
   | { type: "GET_ENTRY_PASSWORD_VALUE"; entryId: string }
-  | { type: "LOCK_SESSION" };
+  | { type: "LOCK_SESSION" }
+  | {
+      type: "CHANGE_MASTER_PASSWORD";
+      newMasterPassword: string;
+      confirmNewMasterPassword: string;
+    };
 
 export type RuntimeResponse<T> =
   | { ok: true; data: T }
@@ -93,4 +98,12 @@ export interface GetPasswordUiResult {
 
 export interface GetPasswordValueUiResult {
   password: string;
+}
+
+export interface ChangePasswordUiResult {
+  expiresAtUnix: number;
+  maxExpiresAtUnix: number;
+  ttlSecs: number;
+  maxTtlSecs: number;
+  invalidatedSessions: number;
 }

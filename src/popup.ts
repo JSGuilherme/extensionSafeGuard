@@ -12,13 +12,15 @@ import type {
     RuntimeResponse,
     SessionStatusUiResult,
     UnlockUiResult,
-    VaultStatusUiResult
+    VaultStatusUiResult,
+    ChangePasswordUiResult
 } from "./types/messages.js";
 
 const unlockBtn = mustGetElement<HTMLButtonElement>("unlock-btn");
 const createVaultBtn = mustGetElement<HTMLButtonElement>("create-vault-btn");
 const refreshBtn = mustGetElement<HTMLButtonElement>("refresh-btn");
 const lockBtn = mustGetElement<HTMLButtonElement>("lock-btn");
+const changePasswordBtn = mustGetElement<HTMLButtonElement>("change-password-btn");
 const passwordInput = mustGetElement<HTMLInputElement>("master-password");
 const unlockPanel = mustGetElement<HTMLElement>("unlock-panel");
 const tabEntriesBtn = mustGetElement<HTMLButtonElement>("tab-entries-btn");
@@ -39,6 +41,13 @@ const backendStateText = mustGetElement<HTMLParagraphElement>("backend-state");
 const themeToggleBtn = mustGetElement<HTMLButtonElement>("theme-toggle-btn");
 const notesInfoBtn = mustGetElement<HTMLButtonElement>("notes-info-btn");
 const notesHelp = mustGetElement<HTMLElement>("notes-help");
+const changePasswordModal = mustGetElement<HTMLDialogElement>("change-password-modal");
+const changePasswordForm = mustGetElement<HTMLFormElement>("change-password-form");
+const newPasswordInput = mustGetElement<HTMLInputElement>("new-password");
+const confirmPasswordInput = mustGetElement<HTMLInputElement>("confirm-password");
+const closeModalBtn = mustGetElement<HTMLButtonElement>("close-modal-btn");
+const cancelPasswordBtn = mustGetElement<HTMLButtonElement>("cancel-password-btn");
+const confirmPasswordBtn = mustGetElement<HTMLButtonElement>("confirm-password-btn");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 const PAGE_METADATA_TIMEOUT_MS = 1500;
 const THEME_STORAGE_KEY = "safeguard_theme";
@@ -89,6 +98,23 @@ refreshBtn.addEventListener("click", () => {
 
 lockBtn.addEventListener("click", () => {
     void lockSession();
+});
+
+changePasswordBtn.addEventListener("click", () => {
+    openChangePasswordModal();
+});
+
+closeModalBtn.addEventListener("click", () => {
+    closeChangePasswordModal();
+});
+
+cancelPasswordBtn.addEventListener("click", () => {
+    closeChangePasswordModal();
+});
+
+changePasswordForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void changePassword();
 });
 
 themeToggleBtn.addEventListener("click", () => {
@@ -1408,6 +1434,74 @@ async function sendMessage<T>(payload: RuntimeRequest): Promise<RuntimeResponse<
             resolve(response);
         });
     });
+}
+
+async function changePassword(): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
+        return;
+    }
+
+    const newPassword = newPasswordInput.value.trim();
+    const confirmPassword = confirmPasswordInput.value.trim();
+
+    if (!newPassword || !confirmPassword) {
+        setStatus("Informe a nova senha e sua confirmacao.", "error");
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        setStatus("As senhas nao coincidem.", "error");
+        return;
+    }
+
+    if (newPassword.length < 1) {
+        setStatus("A nova senha nao pode estar vazia.", "error");
+        return;
+    }
+
+    closeChangePasswordModal();
+    setStatus("Trocando senha mestra...");
+    toggleLoading(true);
+
+    let response: RuntimeResponse<ChangePasswordUiResult>;
+    try {
+        response = await sendMessage<ChangePasswordUiResult>({
+            type: "CHANGE_MASTER_PASSWORD",
+            newMasterPassword: newPassword,
+            confirmNewMasterPassword: confirmPassword
+        });
+    } catch (error) {
+        console.error("Falha ao trocar senha mestra via background:", error);
+        setStatus("Falha ao trocar a senha mestra.", "error");
+        toggleLoading(false);
+        return;
+    }
+
+    toggleLoading(false);
+
+    if (!response.ok) {
+        setStatus(mapFriendlyError(response.error.code), "error");
+        return;
+    }
+
+    newPasswordInput.value = "";
+    confirmPasswordInput.value = "";
+    setStatus(
+        `Senha mestra trocada com sucesso. ${response.data.invalidatedSessions} outra(s) sessao(oes) foi(foram) invalidada(s). ${formatSessionWindow(response.data)}`,
+        "success"
+    );
+}
+
+function openChangePasswordModal(): void {
+    newPasswordInput.value = "";
+    confirmPasswordInput.value = "";
+    changePasswordModal.showModal();
+}
+
+function closeChangePasswordModal(): void {
+    newPasswordInput.value = "";
+    confirmPasswordInput.value = "";
+    changePasswordModal.close();
 }
 
 function mustGetElement<T extends HTMLElement>(id: string): T {

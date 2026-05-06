@@ -45,6 +45,7 @@
             <h2>Credenciais</h2>
             <div class="entries-header-actions">
               <button id="refresh-btn" type="button" class="secondary">Atualizar</button>
+              <button id="change-password-btn" type="button" class="secondary">Trocar Senha</button>
               <button id="lock-btn" type="button" class="secondary">Desconectar</button>
             </div>
           </div>
@@ -107,6 +108,29 @@
         <p id="status" class="status" role="status" aria-live="polite"></p>
       </section>
     </main>
+
+    <dialog id="change-password-modal" class="change-password-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Trocar Senha Mestra</h2>
+          <button id="close-modal-btn" type="button" class="close-btn" aria-label="Fechar">&times;</button>
+        </div>
+        <form id="change-password-form" class="modal-body">
+          <div class="form-group">
+            <label for="new-password">Nova Senha Mestra</label>
+            <input id="new-password" type="password" autocomplete="off" required />
+          </div>
+          <div class="form-group">
+            <label for="confirm-password">Confirmar Nova Senha</label>
+            <input id="confirm-password" type="password" autocomplete="off" required />
+          </div>
+          <div class="modal-actions">
+            <button id="cancel-password-btn" type="button" class="secondary">Cancelar</button>
+            <button id="confirm-password-btn" type="submit">Confirmar Troca</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <script src="popup.js" type="module"></script>
   </body>

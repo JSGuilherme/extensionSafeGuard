@@ -7,7 +7,8 @@ import type {
   TouchSessionResponse,
   UnlockRequest,
   UnlockResponse,
-  VaultStatusResponse
+  VaultStatusResponse,
+  ChangePasswordResponse
 } from "../types/api.js";
 import { ApiClientError } from "../types/api.js";
 import type { CreateEntryUiResult } from "../types/messages.js";
@@ -279,6 +280,41 @@ export class LocalApiClient {
       method: "POST",
       headers: auth.headers
     });
+  }
+
+  async changePassword(
+    sessionToken: string,
+    body: { new_master_password: string; confirm_new_master_password: string }
+  ): Promise<ChangePasswordResponse> {
+    const auth = this.buildAuth(sessionToken, {
+      pathWithToken: `/api/v1/session/${encodeURIComponent(sessionToken)}/password`,
+      pathWithBearer: "/api/v1/session/password"
+    });
+
+    const payload = await this.requestJson<ChangePasswordResponse>(auth.path, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth.headers ?? {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (
+      typeof payload.session_token !== "string" ||
+      typeof payload.expires_at_unix !== "number" ||
+      typeof payload.max_expires_at_unix !== "number" ||
+      typeof payload.ttl_secs !== "number" ||
+      typeof payload.max_ttl_secs !== "number" ||
+      typeof payload.invalidated_sessions !== "number"
+    ) {
+      throw new ApiClientError(
+        "INVALID_RESPONSE",
+        "Resposta invalida no endpoint de troca de senha mestra."
+      );
+    }
+
+    return payload;
   }
 
   private buildAuth(
