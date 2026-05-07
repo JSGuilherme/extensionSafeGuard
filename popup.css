@@ -113,9 +113,26 @@ body {
 
 .theme-toggle-btn {
     width: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     white-space: nowrap;
     margin-left: auto;
     align-self: center;
+}
+
+.theme-toggle-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    display: inline-block;
+    fill: currentColor;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.theme-toggle-btn:hover .theme-toggle-icon {
+    transform: translateY(-1px);
+    opacity: 0.96;
 }
 
 .app-header .theme-toggle-btn {
@@ -125,6 +142,33 @@ body {
 .app-header .theme-toggle-btn:last-child {
     corner-top-right-shape: round;
     corner-bottom-right-shape: round;
+}
+
+.entries-header-actions .icon-btn {
+    width: auto;
+    min-width: 36px;
+    padding: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    fill: currentColor;
+    flex: 0 0 auto;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.entries-header-actions .icon-btn:hover .action-icon {
+    transform: translateY(-1px);
+    opacity: 0.96;
+}
+
+.entries-header-actions {
+    flex-wrap: wrap;
 }
 
 .app-header h1 {

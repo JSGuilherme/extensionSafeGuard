@@ -48,6 +48,8 @@ const confirmPasswordInput = mustGetElement<HTMLInputElement>("confirm-password"
 const closeModalBtn = mustGetElement<HTMLButtonElement>("close-modal-btn");
 const cancelPasswordBtn = mustGetElement<HTMLButtonElement>("cancel-password-btn");
 const confirmPasswordBtn = mustGetElement<HTMLButtonElement>("confirm-password-btn");
+const themeToggleIconLight = mustGetElement<SVGSVGElement>("theme-toggle-icon-light");
+const themeToggleIconDark = mustGetElement<SVGSVGElement>("theme-toggle-icon-dark");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 const PAGE_METADATA_TIMEOUT_MS = 1500;
 const THEME_STORAGE_KEY = "safeguard_theme";
@@ -247,9 +249,13 @@ function applyTheme(theme: ThemeMode): void {
 
 function syncThemeToggleUi(): void {
     const isLight = currentTheme === "light";
-    themeToggleBtn.textContent = isLight ? "Tema claro" : "Tema escuro";
+    themeToggleIconLight.classList.toggle("hidden", isLight);
+    themeToggleIconDark.classList.toggle("hidden", !isLight);
     themeToggleBtn.setAttribute("aria-pressed", String(isLight));
-    themeToggleBtn.setAttribute("aria-label", isLight ? "Alternar para tema escuro" : "Alternar para tema claro");
+    const label = isLight ? "Alternar para tema escuro" : "Alternar para tema claro";
+    themeToggleBtn.setAttribute("aria-label", label);
+    themeToggleBtn.setAttribute("data-balloon", label);
+    themeToggleBtn.setAttribute("data-balloon-pos", "left");
 }
 
 async function toggleTheme(): Promise<void> {
@@ -1504,10 +1510,10 @@ function closeChangePasswordModal(): void {
     changePasswordModal.close();
 }
 
-function mustGetElement<T extends HTMLElement>(id: string): T {
+function mustGetElement<T extends Element>(id: string): T {
     const element = document.getElementById(id);
     if (!element) {
         throw new Error(`Elemento obrigatorio nao encontrado: ${id}`);
     }
-    return element as T;
+    return element as unknown as T;
 }

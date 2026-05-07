@@ -13,11 +13,11 @@
     "default_title": "Safe Guard",
     "default_popup": "popup.html",
     "default_icon": {
-      "512": "icons/logo-safe-guard.png"
+      "512": "icons/logo/logo-safe-guard.png"
     }
   },
   "icons": {
-    "512": "icons/logo-safe-guard.png"
+    "512": "icons/logo/logo-safe-guard.png"
   },
   "content_scripts": [
     {
