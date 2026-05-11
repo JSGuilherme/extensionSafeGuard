@@ -1,5 +1,5 @@
 import { LocalApiClient } from "./api/client.js";
-import { API_AUTH_MODE, API_BASE_URL } from "./config.js";
+import { API_AUTH_MODE } from "./config.js";
 import { ApiClientError } from "./types/api.js";
 import type { TouchSessionResponse, UnlockResponse } from "./types/api.js";
 import type { RuntimeRequest, RuntimeResponse } from "./types/messages.js";
@@ -34,15 +34,25 @@ interface AutofillResponsePayload {
   postActionReason?: PostActionReason;
 }
 
-const apiClient = new LocalApiClient({
-  baseUrl: API_BASE_URL,
-  authMode: API_AUTH_MODE
-});
+const DEFAULT_API_PORT = 5474;
+const API_PORT_STORAGE_KEY = "safeguard_api_port";
+
+let apiClient = createApiClient(DEFAULT_API_PORT);
 
 const SESSION_KEY = "cofre_session";
 let sessionState: SessionState | null = null;
 
-const initializePromise = initializeSession();
+const initializePromise = initializeEnvironment();
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") {
+    return;
+  }
+
+  if (changes[API_PORT_STORAGE_KEY]) {
+    void refreshApiClientFromStorage();
+  }
+});
 
 chrome.runtime.onMessage.addListener((message: RuntimeRequest, _sender, sendResponse) => {
   void handleMessage(message)
@@ -93,6 +103,45 @@ async function initializeSession(): Promise<void> {
     console.warn("[cofre-bg] initializeSession: falha ao ler storage.session.");
     sessionState = null;
   }
+}
+
+async function initializeEnvironment(): Promise<void> {
+  await Promise.all([refreshApiClientFromStorage(), initializeSession()]);
+}
+
+function createApiClient(port: number): LocalApiClient {
+  return new LocalApiClient({
+    baseUrl: `http://127.0.0.1:${port}`,
+    authMode: API_AUTH_MODE
+  });
+}
+
+async function refreshApiClientFromStorage(): Promise<void> {
+  const port = await loadConfiguredApiPort();
+  apiClient = createApiClient(port ?? DEFAULT_API_PORT);
+  console.info("[cofre-bg] refreshApiClientFromStorage: cliente da API atualizado.", {
+    port: port ?? DEFAULT_API_PORT
+  });
+}
+
+async function loadConfiguredApiPort(): Promise<number | null> {
+  try {
+    const result = await chrome.storage.local.get(API_PORT_STORAGE_KEY);
+    const value = result[API_PORT_STORAGE_KEY] as unknown;
+    if (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn("[cofre-bg] loadConfiguredApiPort: falha ao ler porta configurada.", error);
+  }
+
+  return null;
 }
 
 async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<unknown>> {

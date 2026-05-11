@@ -50,9 +50,18 @@ const cancelPasswordBtn = mustGetElement<HTMLButtonElement>("cancel-password-btn
 const confirmPasswordBtn = mustGetElement<HTMLButtonElement>("confirm-password-btn");
 const themeToggleIconLight = mustGetElement<SVGSVGElement>("theme-toggle-icon-light");
 const themeToggleIconDark = mustGetElement<SVGSVGElement>("theme-toggle-icon-dark");
+const settingsBtn = mustGetElement<HTMLButtonElement>("settings-btn");
+const settingsModal = mustGetElement<HTMLDialogElement>("settings-modal");
+const settingsForm = mustGetElement<HTMLFormElement>("settings-form");
+const apiPortInput = mustGetElement<HTMLInputElement>("api-port-input");
+const closeSettingsBtn = mustGetElement<HTMLButtonElement>("close-settings-btn");
+const cancelSettingsBtn = mustGetElement<HTMLButtonElement>("cancel-settings-btn");
+const reloadExtensionBtn = mustGetElement<HTMLButtonElement>("reload-extension-btn");
+const saveSettingsBtn = mustGetElement<HTMLButtonElement>("save-settings-btn");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 const PAGE_METADATA_TIMEOUT_MS = 1500;
 const THEME_STORAGE_KEY = "safeguard_theme";
+const API_PORT_STORAGE_KEY = "safeguard_api_port";
 
 type ThemeMode = "dark" | "light";
 type EntryFormMode = "create" | "edit";
@@ -82,8 +91,10 @@ let currentTheme: ThemeMode = "dark";
 let entryFormMode: EntryFormMode = "create";
 let editingEntryState: EditingEntryState | null = null;
 let notesLoadSequence = 0;
+let apiPort: number | null = null;
 
 void initializeTheme();
+void initializeSettings();
 syncSessionUi();
 
 unlockBtn.addEventListener("click", () => {
@@ -121,6 +132,27 @@ changePasswordForm.addEventListener("submit", (event) => {
 
 themeToggleBtn.addEventListener("click", () => {
     void toggleTheme();
+});
+
+settingsBtn.addEventListener("click", () => {
+    openSettingsModal();
+});
+
+closeSettingsBtn.addEventListener("click", () => {
+    closeSettingsModal();
+});
+
+cancelSettingsBtn.addEventListener("click", () => {
+    closeSettingsModal();
+});
+
+reloadExtensionBtn.addEventListener("click", () => {
+    void saveSettingsAndReload();
+});
+
+settingsForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveSettings();
 });
 
 notesInfoBtn.addEventListener("click", (event) => {
@@ -256,6 +288,89 @@ function syncThemeToggleUi(): void {
     themeToggleBtn.setAttribute("aria-label", label);
     themeToggleBtn.setAttribute("data-balloon", label);
     themeToggleBtn.setAttribute("data-balloon-pos", "left");
+}
+
+async function initializeSettings(): Promise<void> {
+    const stored = await loadStoredApiPort();
+    apiPort = stored;
+}
+
+async function loadStoredApiPort(): Promise<number | null> {
+    try {
+        const result = await chrome.storage.local.get(API_PORT_STORAGE_KEY);
+        const value = result[API_PORT_STORAGE_KEY] as unknown;
+        if (typeof value === "number") {
+            return value;
+        }
+        if (typeof value === "string" && value !== "") {
+            const parsed = parseInt(value, 10);
+            if (!Number.isNaN(parsed)) return parsed;
+        }
+    } catch (error) {
+        console.warn("Falha ao carregar porta da API salva:", error);
+    }
+    return null;
+}
+
+async function persistApiPort(port: number | null): Promise<void> {
+    try {
+        await chrome.storage.local.set({ [API_PORT_STORAGE_KEY]: port });
+    } catch (error) {
+        console.warn("Falha ao salvar porta da API:", error);
+    }
+}
+
+function openSettingsModal(): void {
+    apiPortInput.value = apiPort !== null ? String(apiPort) : "";
+    settingsModal.showModal();
+}
+
+function closeSettingsModal(): void {
+    settingsModal.close();
+}
+
+async function saveSettings(): Promise<void> {
+    const raw = apiPortInput.value.trim();
+    if (raw === "") {
+        apiPort = null;
+        await persistApiPort(null);
+        setStatus("Porta da API removida. Usando padrão.", "success");
+        closeSettingsModal();
+        chrome.runtime.reload();
+        return;
+    }
+
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
+        setStatus("Porta inválida. Informe um número entre 1 e 65535.", "error");
+        return;
+    }
+
+    apiPort = parsed;
+    await persistApiPort(parsed);
+    setStatus(`Porta da API salva: ${parsed}. Recarregando extensão...`, "success");
+    closeSettingsModal();
+    chrome.runtime.reload();
+}
+
+async function saveSettingsAndReload(): Promise<void> {
+    const raw = apiPortInput.value.trim();
+    if (raw === "") {
+        apiPort = null;
+        await persistApiPort(null);
+        chrome.runtime.reload();
+        return;
+    }
+
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
+        setStatus("Porta inválida. Informe um número entre 1 e 65535.", "error");
+        return;
+    }
+
+    apiPort = parsed;
+    await persistApiPort(parsed);
+    chrome.runtime.reload();
 }
 
 async function toggleTheme(): Promise<void> {
