@@ -1,6 +1,7 @@
 import { LocalApiClient } from "./api/client.js";
 import { API_AUTH_MODE } from "./config.js";
 import { ApiClientError } from "./types/api.js";
+import type { EntrySummary } from "./types/api.js";
 import type { TouchSessionResponse, UnlockResponse } from "./types/api.js";
 import type { RuntimeRequest, RuntimeResponse } from "./types/messages.js";
 
@@ -492,8 +493,9 @@ async function autofillFirstSavedEntry(): Promise<{
 }> {
   const activeSession = await requireSession();
   const listed = await apiClient.listEntries(activeSession.token);
+  const prioritizedEntries = await prioritizeEntriesByActivePage(listed.entries);
 
-  if (listed.entries.length === 0) {
+  if (prioritizedEntries.length === 0) {
     return {
       filled: false,
       reason: "NO_ENTRIES_FOUND",
@@ -501,7 +503,7 @@ async function autofillFirstSavedEntry(): Promise<{
     };
   }
 
-  const firstEntry = listed.entries[0];
+  const firstEntry = prioritizedEntries[0];
   if (!firstEntry) {
     return {
       filled: false,
@@ -536,6 +538,47 @@ async function autofillFirstSavedEntry(): Promise<{
     postActionExecuted: autofillResult.postActionExecuted,
     postActionReason
   };
+}
+
+async function prioritizeEntriesByActivePage(entries: EntrySummary[]): Promise<EntrySummary[]> {
+  const activeUrl = await getActiveTabUrl();
+  if (!activeUrl) {
+    return entries;
+  }
+
+  return [...entries].sort((a, b) => scoreEntryForUrl(b.url, activeUrl) - scoreEntryForUrl(a.url, activeUrl));
+}
+
+async function getActiveTabUrl(): Promise<string | null> {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return activeTab?.url ?? null;
+}
+
+function scoreEntryForUrl(entryUrl: string | undefined, activeUrl: string): number {
+  if (!entryUrl) {
+    return 0;
+  }
+
+  try {
+    const entry = new URL(entryUrl);
+    const active = new URL(activeUrl);
+
+    if (entry.origin === active.origin && entry.pathname === active.pathname) {
+      return 30;
+    }
+
+    if (entry.hostname === active.hostname) {
+      return 20;
+    }
+
+    if (active.hostname.endsWith(`.${entry.hostname}`) || entry.hostname.endsWith(`.${active.hostname}`)) {
+      return 10;
+    }
+  } catch {
+    return 0;
+  }
+
+  return 0;
 }
 
 async function requireSession(): Promise<SessionState> {
