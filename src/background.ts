@@ -70,6 +70,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeRequest, _sender, sendResp
   return true;
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  void handleCommand(command);
+});
+
 async function initializeSession(): Promise<void> {
   console.info("[cofre-bg] initializeSession: iniciando leitura da storage.session.");
   try {
@@ -391,17 +395,7 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
     }
 
     if (message.type === "LOCK_SESSION") {
-      if (sessionState) {
-        try {
-          await apiClient.lockSession(sessionState.token);
-        } catch (error) {
-          if (!(error instanceof ApiClientError) || error.code !== "NOT_FOUND") {
-            throw error;
-          }
-        }
-      }
-
-      await clearSessionState();
+      await lockCurrentSession();
       return { ok: true, data: { locked: true } };
     }
 
@@ -457,6 +451,91 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
       }
     };
   }
+}
+
+async function handleCommand(command: string): Promise<void> {
+  await initializePromise;
+
+  if (command === "autofill-first-entry") {
+    const result = await autofillFirstSavedEntry();
+    console.info("[cofre-bg] Command autofill-first-entry executado.", result);
+    return;
+  }
+
+  if (command === "lock-session") {
+    await lockCurrentSession();
+    console.info("[cofre-bg] Command lock-session executado.");
+  }
+}
+
+async function lockCurrentSession(): Promise<void> {
+  if (sessionState) {
+    try {
+      await apiClient.lockSession(sessionState.token);
+    } catch (error) {
+      if (!(error instanceof ApiClientError) || error.code !== "NOT_FOUND") {
+        throw error;
+      }
+    }
+  }
+
+  await clearSessionState();
+}
+
+async function autofillFirstSavedEntry(): Promise<{
+  filled: boolean;
+  reason?: string;
+  reasonDetail?: string;
+  postActionAttempted?: boolean;
+  postActionExecuted?: boolean;
+  postActionReason?: PostActionReason;
+}> {
+  const activeSession = await requireSession();
+  const listed = await apiClient.listEntries(activeSession.token);
+
+  if (listed.entries.length === 0) {
+    return {
+      filled: false,
+      reason: "NO_ENTRIES_FOUND",
+      reasonDetail: "Nenhuma credencial salva para autofill."
+    };
+  }
+
+  const firstEntry = listed.entries[0];
+  if (!firstEntry) {
+    return {
+      filled: false,
+      reason: "NO_ENTRIES_FOUND",
+      reasonDetail: "Nenhuma credencial salva para autofill."
+    };
+  }
+
+  const passwordResult = await apiClient.getEntryPassword(activeSession.token, firstEntry.id);
+  const notesResult = await getEntryNotesSafely(activeSession.token, firstEntry.id);
+  await refreshSessionActivity(activeSession);
+
+  const postAction = parseNotesPostAction(notesResult.notes);
+  const autofillResult = await sendAutofillToActiveTab({
+    password: passwordResult.senha,
+    username: firstEntry.usuario,
+    postAction: postAction.actions
+  });
+
+  const postActionReason =
+    postAction.actions != null
+      ? autofillResult.postActionReason
+      : postAction.parseReason !== "NOT_CONFIGURED"
+        ? postAction.parseReason
+        : autofillResult.postActionReason;
+
+  return {
+    filled: autofillResult.filled,
+    reason: autofillResult.reason,
+    reasonDetail: autofillResult.reasonDetail,
+    postActionAttempted: autofillResult.postActionAttempted,
+    postActionExecuted: autofillResult.postActionExecuted,
+    postActionReason
+  };
 }
 
 async function requireSession(): Promise<SessionState> {

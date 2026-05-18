@@ -56,6 +56,7 @@ const settingsForm = mustGetElement<HTMLFormElement>("settings-form");
 const apiPortInput = mustGetElement<HTMLInputElement>("api-port-input");
 const closeSettingsBtn = mustGetElement<HTMLButtonElement>("close-settings-btn");
 const cancelSettingsBtn = mustGetElement<HTMLButtonElement>("cancel-settings-btn");
+const openShortcutsBtn = mustGetElement<HTMLButtonElement>("open-shortcuts-btn");
 const reloadExtensionBtn = mustGetElement<HTMLButtonElement>("reload-extension-btn");
 const saveSettingsBtn = mustGetElement<HTMLButtonElement>("save-settings-btn");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
@@ -144,6 +145,10 @@ closeSettingsBtn.addEventListener("click", () => {
 
 cancelSettingsBtn.addEventListener("click", () => {
     closeSettingsModal();
+});
+
+openShortcutsBtn.addEventListener("click", () => {
+    void openBrowserShortcutsPage();
 });
 
 reloadExtensionBtn.addEventListener("click", () => {
@@ -327,6 +332,21 @@ function openSettingsModal(): void {
 
 function closeSettingsModal(): void {
     settingsModal.close();
+}
+
+async function openBrowserShortcutsPage(): Promise<void> {
+    closeSettingsModal();
+
+    const shortcutsUrl = navigator.userAgent.includes("Edg/")
+        ? "edge://extensions/shortcuts"
+        : "chrome://extensions/shortcuts";
+
+    try {
+        await chrome.tabs.create({ url: shortcutsUrl });
+    } catch (error) {
+        console.warn("Falha ao abrir a tela de atalhos do navegador:", error);
+        setStatus("Nao foi possivel abrir a tela de atalhos agora.", "error");
+    }
 }
 
 async function saveSettings(): Promise<void> {
