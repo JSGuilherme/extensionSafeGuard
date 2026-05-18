@@ -458,9 +458,28 @@ async function handleCommand(command: string): Promise<void> {
   await initializePromise;
 
   if (command === "autofill-first-entry") {
-    const result = await autofillFirstSavedEntry();
-    console.info("[cofre-bg] Command autofill-first-entry executado.", result);
-    return;
+    try {
+      const result = await autofillFirstSavedEntry();
+      console.info("[cofre-bg] Command autofill-first-entry executado.", result);
+      return;
+    } catch (error) {
+      if (error instanceof ApiClientError && error.code === "SESSION_EXPIRED") {
+        console.info("[cofre-bg] Command autofill-first-entry: sessao expirada. Abrindo popup para login.");
+        try {
+          // Tenta abrir o popup da action para que o usuario faça login/unlock.
+          // Em navegadores que suportam MV3, chrome.action.openPopup() abre o popup da extensao.
+          // Se falhar, apenas logamos o erro e saimos silenciosamente.
+          // eslint-disable-next-line @typescript-eslint/await-thenable
+          await chrome.action.openPopup();
+        } catch (openErr) {
+          console.warn("[cofre-bg] Falha ao abrir popup da extensao:", openErr);
+        }
+        return;
+      }
+
+      console.error("[cofre-bg] Erro ao executar comando autofill-first-entry:", error);
+      return;
+    }
   }
 
   if (command === "lock-session") {

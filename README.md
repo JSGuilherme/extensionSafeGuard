@@ -121,3 +121,16 @@ Quando a API migrar para header Authorization, a troca fica isolada no cliente (
 
 - Nao ha logs contendo token ou senha em texto claro.
 - A senha e requisitada apenas no momento de uso de credencial.
+
+## Atalhos de Teclado
+
+A extensão inclui atalhos de teclado sugeridos para agilizar o uso. Esses atalhos são sugestões padrão e podem ser remapeados pelo usuário em `chrome://extensions/shortcuts` (Chrome) ou `edge://extensions/shortcuts` (Edge).
+
+- **Abrir o popup da extensão**: `Ctrl+Shift+1` (Windows/Linux), `Command+Shift+1` (macOS)
+- **Autofill — primeira credencial**: `Ctrl+Shift+2` (Windows/Linux), `Command+Shift+2` (macOS)
+- **Bloquear sessão**: `Ctrl+Shift+3` (Windows/Linux), `Command+Shift+3` (macOS)
+
+Observações:
+- O atalho de abertura do popup usa o comando reservado `_execute_action` e mostrará o popup definido em `manifest.json`.
+- O atalho de autofill tenta preencher a primeira credencial priorizada para a aba ativa (a prioridade segue a mesma lógica usada pela UI do popup).
+- Se preferir outro atalho, abra a tela de atalhos do navegador (link acima) e remapeie a tecla para cada comando.
