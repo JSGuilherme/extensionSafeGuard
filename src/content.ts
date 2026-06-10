@@ -27,6 +27,8 @@ type PostActionReason =
 
 interface AutofillResult {
   filled: boolean;
+  filledUsername?: boolean;
+  filledPassword?: boolean;
   reason?: AutofillReason;
   reasonDetail?: string;
   postActionAttempted?: boolean;
@@ -81,29 +83,52 @@ function autofill(
 
   const hasUsernameToFill = Boolean(username);
   const canFillPassword = Boolean(passwordField);
-  const canFillUsername = !hasUsernameToFill || Boolean(usernameField);
+  const canFillUsername = hasUsernameToFill && Boolean(usernameField);
 
-  if (!canFillPassword && !(hasUsernameToFill && canFillUsername)) {
+  if (!canFillPassword && !canFillUsername) {
     return { filled: false, reason: "NO_FILLABLE_FIELDS", postActionReason: "AUTOFILL_FAILED" };
   }
 
+  let filledUsername = false;
+  let filledPassword = false;
+
   if (username && usernameField) {
     fillInput(usernameField, username);
+    filledUsername = true;
   }
 
   if (passwordField) {
     fillInput(passwordField, password);
+    filledPassword = true;
+  }
+
+  // Preenchimento parcial: reporta qual campo ficou faltando.
+  let partialReason: AutofillReason | undefined;
+  if (!filledPassword) {
+    partialReason = "PASSWORD_FIELD_NOT_FOUND";
+  } else if (hasUsernameToFill && !filledUsername) {
+    partialReason = "USERNAME_FIELD_NOT_FOUND";
   }
 
   const postActionResult = runPostAction(postAction);
 
   return {
     filled: true,
+    filledUsername,
+    filledPassword,
+    reason: partialReason,
     postActionAttempted: postActionResult.attempted,
     postActionExecuted: postActionResult.executed,
     postActionReason: postActionResult.reason,
-    reasonDetail: postActionResult.reasonDetail
+    reasonDetail: postActionResult.reasonDetail ?? (partialReason ? describePartialFill(partialReason) : undefined)
   };
+}
+
+function describePartialFill(reason: AutofillReason): string {
+  if (reason === "PASSWORD_FIELD_NOT_FOUND") {
+    return "Campo de senha nao encontrado; apenas o usuario foi preenchido.";
+  }
+  return "Campo de usuario nao encontrado; apenas a senha foi preenchida.";
 }
 
 function runPostAction(actions?: AutofillPostAction[]): {

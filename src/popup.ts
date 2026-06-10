@@ -57,12 +57,36 @@ const apiPortInput = mustGetElement<HTMLInputElement>("api-port-input");
 const closeSettingsBtn = mustGetElement<HTMLButtonElement>("close-settings-btn");
 const cancelSettingsBtn = mustGetElement<HTMLButtonElement>("cancel-settings-btn");
 const openShortcutsBtn = mustGetElement<HTMLButtonElement>("open-shortcuts-btn");
-const reloadExtensionBtn = mustGetElement<HTMLButtonElement>("reload-extension-btn");
 const saveSettingsBtn = mustGetElement<HTMLButtonElement>("save-settings-btn");
+const sessionStateText = mustGetElement<HTMLParagraphElement>("session-state");
+const entriesSearchInput = mustGetElement<HTMLInputElement>("entries-search-input");
+const entriesEmptyState = mustGetElement<HTMLElement>("entries-empty-state");
+const entriesEmptyText = mustGetElement<HTMLParagraphElement>("entries-empty-text");
+const emptyStateCreateBtn = mustGetElement<HTMLButtonElement>("empty-state-create-btn");
+const toggleMasterPasswordBtn = mustGetElement<HTMLButtonElement>("toggle-master-password-btn");
+const toggleCreatePasswordBtn = mustGetElement<HTMLButtonElement>("toggle-create-password-btn");
+const createEntryForm = mustGetElement<HTMLFormElement>("create-entry-form");
+const confirmDeleteModal = mustGetElement<HTMLDialogElement>("confirm-delete-modal");
+const confirmDeleteText = mustGetElement<HTMLParagraphElement>("confirm-delete-text");
+const closeDeleteBtn = mustGetElement<HTMLButtonElement>("close-delete-btn");
+const cancelDeleteBtn = mustGetElement<HTMLButtonElement>("cancel-delete-btn");
+const confirmDeleteBtn = mustGetElement<HTMLButtonElement>("confirm-delete-btn");
 const RUNTIME_MESSAGE_TIMEOUT_MS = 3500;
 const PAGE_METADATA_TIMEOUT_MS = 1500;
 const THEME_STORAGE_KEY = "safeguard_theme";
 const API_PORT_STORAGE_KEY = "safeguard_api_port";
+const CLIPBOARD_CLEAR_DELAY_MS = 30_000;
+const SESSION_TICKER_INTERVAL_MS = 10_000;
+
+// Icones Phosphor (paths em viewBox 256) usados nos botoes de acao das credenciais.
+const ICON_PATH_KEY =
+    "M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176A15.86,15.86,0,0,0,24,187.31V216a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A80,80,0,0,0,216.57,39.43ZM224,98.1c-1.09,34.09-29.75,61.86-63.89,61.9h-.14a63.7,63.7,0,0,1-23.65-4.51,8,8,0,0,0-8.84,1.68L116.69,168H96a8,8,0,0,0-8,8v16H72a8,8,0,0,0-8,8v16H40V187.31l58.83-58.82a8,8,0,0,0,1.68-8.84A63.72,63.72,0,0,1,96,96.14C96,62,123.78,33.36,157.88,32.29A64,64,0,0,1,224,98.1ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z";
+const ICON_PATH_USER =
+    "M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z";
+const ICON_PATH_PENCIL =
+    "M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z";
+const ICON_PATH_TRASH =
+    "M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z";
 
 type ThemeMode = "dark" | "light";
 type EntryFormMode = "create" | "edit";
@@ -86,6 +110,7 @@ interface ActivePageCredentialFields {
 }
 
 let entriesCache: EntrySummary[] = [];
+let entriesFilter = "";
 let sessionUnlocked = false;
 let vaultExists = true;
 let currentTheme: ThemeMode = "dark";
@@ -93,6 +118,11 @@ let entryFormMode: EntryFormMode = "create";
 let editingEntryState: EditingEntryState | null = null;
 let notesLoadSequence = 0;
 let apiPort: number | null = null;
+let pendingDeleteEntry: EntrySummary | null = null;
+let sessionExpiresAtUnix: number | null = null;
+let sessionMaxExpiresAtUnix: number | null = null;
+let sessionTickerInterval: number | null = null;
+let clipboardClearTimeout: number | null = null;
 
 void initializeTheme();
 void initializeSettings();
@@ -151,14 +181,43 @@ openShortcutsBtn.addEventListener("click", () => {
     void openBrowserShortcutsPage();
 });
 
-reloadExtensionBtn.addEventListener("click", () => {
-    void saveSettingsAndReload();
-});
-
 settingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
     void saveSettings();
 });
+
+closeDeleteBtn.addEventListener("click", () => {
+    closeConfirmDeleteModal();
+});
+
+cancelDeleteBtn.addEventListener("click", () => {
+    closeConfirmDeleteModal();
+});
+
+confirmDeleteBtn.addEventListener("click", () => {
+    const entry = pendingDeleteEntry;
+    closeConfirmDeleteModal();
+    if (entry) {
+        void performDeleteEntry(entry);
+    }
+});
+
+// Cobre tambem o fechamento nativo do dialog (tecla Esc).
+confirmDeleteModal.addEventListener("close", () => {
+    pendingDeleteEntry = null;
+});
+
+emptyStateCreateBtn.addEventListener("click", () => {
+    setActiveTab("create");
+});
+
+entriesSearchInput.addEventListener("input", () => {
+    entriesFilter = entriesSearchInput.value.trim().toLowerCase();
+    renderEntries();
+});
+
+bindPasswordToggle(toggleMasterPasswordBtn, passwordInput);
+bindPasswordToggle(toggleCreatePasswordBtn, createPasswordInput);
 
 notesInfoBtn.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -188,6 +247,23 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
+document.addEventListener("focusin", (event) => {
+    if (notesHelp.classList.contains("hidden")) {
+        return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Node)) {
+        return;
+    }
+
+    if (notesHelp.contains(target) || notesInfoBtn.contains(target)) {
+        return;
+    }
+
+    setNotesHelpVisible(false);
+});
+
 tabEntriesBtn.addEventListener("click", () => {
     setActiveTab("entries");
 });
@@ -208,7 +284,8 @@ clearCreateBtn.addEventListener("click", () => {
     clearCreateForm();
 });
 
-createEntryBtn.addEventListener("click", () => {
+createEntryForm.addEventListener("submit", (event) => {
+    event.preventDefault();
     void createEntry();
 });
 
@@ -292,7 +369,7 @@ function syncThemeToggleUi(): void {
     const label = isLight ? "Alternar para tema escuro" : "Alternar para tema claro";
     themeToggleBtn.setAttribute("aria-label", label);
     themeToggleBtn.setAttribute("data-balloon", label);
-    themeToggleBtn.setAttribute("data-balloon-pos", "left");
+    themeToggleBtn.setAttribute("data-balloon-pos", "down-right");
 }
 
 async function initializeSettings(): Promise<void> {
@@ -345,52 +422,54 @@ async function openBrowserShortcutsPage(): Promise<void> {
         await chrome.tabs.create({ url: shortcutsUrl });
     } catch (error) {
         console.warn("Falha ao abrir a tela de atalhos do navegador:", error);
-        setStatus("Nao foi possivel abrir a tela de atalhos agora.", "error");
+        setStatus("Não foi possível abrir a tela de atalhos agora.", "error");
     }
 }
 
 async function saveSettings(): Promise<void> {
     const raw = apiPortInput.value.trim();
-    if (raw === "") {
+
+    if (raw !== "") {
+        const parsed = parseInt(raw, 10);
+        if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
+            setStatus("Porta inválida. Informe um número entre 1 e 65535.", "error");
+            return;
+        }
+        apiPort = parsed;
+    } else {
         apiPort = null;
-        await persistApiPort(null);
-        setStatus("Porta da API removida. Usando padrão.", "success");
-        closeSettingsModal();
-        chrome.runtime.reload();
-        return;
     }
 
-    const parsed = parseInt(raw, 10);
-    if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
-        setStatus("Porta inválida. Informe um número entre 1 e 65535.", "error");
-        return;
-    }
-
-    apiPort = parsed;
-    await persistApiPort(parsed);
-    setStatus(`Porta da API salva: ${parsed}. Recarregando extensão...`, "success");
+    // O background escuta a mudanca no storage e recria o client da API
+    // automaticamente — nao e necessario recarregar a extensao.
+    await persistApiPort(apiPort);
     closeSettingsModal();
-    chrome.runtime.reload();
+    setStatus(
+        apiPort !== null
+            ? `Porta da API salva: ${apiPort}.`
+            : "Porta personalizada removida. Usando a porta padrão (5474).",
+        "success"
+    );
+
+    // Aguarda o background recriar o client antes de revalidar a conexao.
+    window.setTimeout(() => {
+        void ensureBackendAvailable();
+    }, 300);
 }
 
-async function saveSettingsAndReload(): Promise<void> {
-    const raw = apiPortInput.value.trim();
-    if (raw === "") {
-        apiPort = null;
-        await persistApiPort(null);
-        chrome.runtime.reload();
-        return;
-    }
+function bindPasswordToggle(button: HTMLButtonElement, input: HTMLInputElement): void {
+    button.addEventListener("click", () => {
+        setPasswordVisibility(button, input, input.type === "password");
+        input.focus();
+    });
+}
 
-    const parsed = parseInt(raw, 10);
-    if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
-        setStatus("Porta inválida. Informe um número entre 1 e 65535.", "error");
-        return;
-    }
-
-    apiPort = parsed;
-    await persistApiPort(parsed);
-    chrome.runtime.reload();
+function setPasswordVisibility(button: HTMLButtonElement, input: HTMLInputElement, visible: boolean): void {
+    input.type = visible ? "text" : "password";
+    button.setAttribute("aria-pressed", String(visible));
+    button.setAttribute("aria-label", visible ? "Ocultar senha" : "Mostrar senha");
+    button.querySelector(".icon-eye")?.classList.toggle("hidden", visible);
+    button.querySelector(".icon-eye-slash")?.classList.toggle("hidden", !visible);
 }
 
 async function toggleTheme(): Promise<void> {
@@ -423,7 +502,7 @@ async function runInitialCheck(): Promise<void> {
         if (!vaultStatus.ok) {
             console.warn("[cofre-popup] runInitialCheck: GET_VAULT_STATUS retornou erro.", vaultStatus.error);
             setStatus(
-                "Nao foi possivel validar o status do cofre agora. Tentando restaurar a sessao local...",
+                "Não foi possível validar o status do cofre agora. Tentando restaurar a sessão local...",
                 "error"
             );
         } else {
@@ -442,7 +521,7 @@ async function runInitialCheck(): Promise<void> {
         }
     } catch (error) {
         console.warn("Falha ao consultar status do cofre na inicializacao:", error);
-        setStatus("Nao foi possivel verificar se o cofre existe. Tentando restaurar a sessao local...", "error");
+        setStatus("Não foi possível verificar se o cofre existe. Tentando restaurar a sessão local...", "error");
     }
 
     try {
@@ -458,8 +537,9 @@ async function runInitialCheck(): Promise<void> {
 
         if (sessionStatus.data.unlocked) {
             sessionUnlocked = true;
+            applySessionWindow(sessionStatus.data);
             syncSessionUi();
-            setStatus(`Sessao ativa restaurada. ${formatSessionWindow(sessionStatus.data)}`, "success");
+            setStatus(`Sessão ativa restaurada. ${formatSessionWindow(sessionStatus.data)}`, "success");
             await loadEntries();
             return;
         }
@@ -486,19 +566,26 @@ async function unlock(): Promise<void> {
     }
 
     if (!vaultExists) {
-        setStatus("Cofre nao encontrado. Clique em Cadastrar cofre para criar o primeiro cofre.", "error");
+        setStatus("Cofre não encontrado. Clique em Cadastrar cofre para criar o primeiro cofre.", "error");
         return;
     }
 
-    setStatus("Desbloqueando sessao...");
-    toggleLoading(true);
+    setStatus("Desbloqueando sessão...");
+    setButtonLoading(unlockBtn, true);
 
-    const response = await sendMessage<UnlockUiResult>({
-        type: "UNLOCK",
-        masterPassword
-    });
-
-    toggleLoading(false);
+    let response: RuntimeResponse<UnlockUiResult>;
+    try {
+        response = await sendMessage<UnlockUiResult>({
+            type: "UNLOCK",
+            masterPassword
+        });
+    } catch (error) {
+        console.error("Falha ao desbloquear via background:", error);
+        setStatus("Sem resposta do background da extensão. Tente novamente.", "error");
+        return;
+    } finally {
+        setButtonLoading(unlockBtn, false);
+    }
 
     if (!response.ok) {
         setStatus(mapFriendlyError(response.error.code), "error");
@@ -506,8 +593,10 @@ async function unlock(): Promise<void> {
     }
 
     passwordInput.value = "";
-    setStatus(`Sessao desbloqueada. ${formatSessionWindow(response.data)}`, "success");
+    setPasswordVisibility(toggleMasterPasswordBtn, passwordInput, false);
+    setStatus(`Sessão desbloqueada. ${formatSessionWindow(response.data)}`, "success");
     sessionUnlocked = true;
+    applySessionWindow(response.data);
     syncSessionUi();
     setInteractive(true);
     await loadEntries();
@@ -525,20 +614,27 @@ async function createVault(): Promise<void> {
     }
 
     setStatus("Cadastrando cofre...");
-    toggleLoading(true);
+    setButtonLoading(createVaultBtn, true);
 
-    const response = await sendMessage<CreateVaultUiResult>({
-        type: "CREATE_VAULT",
-        masterPassword
-    });
-
-    toggleLoading(false);
+    let response: RuntimeResponse<CreateVaultUiResult>;
+    try {
+        response = await sendMessage<CreateVaultUiResult>({
+            type: "CREATE_VAULT",
+            masterPassword
+        });
+    } catch (error) {
+        console.error("Falha ao cadastrar cofre via background:", error);
+        setStatus("Sem resposta do background da extensão. Tente novamente.", "error");
+        return;
+    } finally {
+        setButtonLoading(createVaultBtn, false);
+    }
 
     if (!response.ok) {
         if (response.error.code === "CONFLICT") {
             vaultExists = true;
             syncVaultUi();
-            setStatus("Cofre ja existe. Use Desbloquear para iniciar a sessao.", "error");
+            setStatus("Cofre já existe. Use Desbloquear para iniciar a sessão.", "error");
             return;
         }
 
@@ -547,12 +643,14 @@ async function createVault(): Promise<void> {
     }
 
     passwordInput.value = "";
+    setPasswordVisibility(toggleMasterPasswordBtn, passwordInput, false);
     vaultExists = true;
     sessionUnlocked = true;
+    applySessionWindow(response.data);
     syncVaultUi();
     syncSessionUi();
     setInteractive(true);
-    setStatus(`Cofre cadastrado e sessao desbloqueada. ${formatSessionWindow(response.data)}`, "success");
+    setStatus(`Cofre cadastrado e sessão desbloqueada. ${formatSessionWindow(response.data)}`, "success");
     await loadEntries();
 }
 
@@ -563,8 +661,19 @@ async function loadEntries(): Promise<void> {
 
     console.info("[cofre-popup] loadEntries: solicitando LIST_ENTRIES.");
     setStatus("Atualizando credenciais...");
+    setButtonLoading(refreshBtn, true);
 
-    const response = await sendMessage<ListEntriesUiResult>({ type: "LIST_ENTRIES" });
+    let response: RuntimeResponse<ListEntriesUiResult>;
+    try {
+        response = await sendMessage<ListEntriesUiResult>({ type: "LIST_ENTRIES" });
+    } catch (error) {
+        console.error("[cofre-popup] loadEntries: falha na comunicacao com o background.", error);
+        setStatus("Sem resposta do background da extensão. Tente novamente.", "error");
+        return;
+    } finally {
+        setButtonLoading(refreshBtn, false);
+    }
+
     if (!response.ok) {
         console.warn("[cofre-popup] loadEntries: LIST_ENTRIES retornou erro.", response.error);
         setStatus(mapFriendlyError(response.error.code), "error");
@@ -572,6 +681,7 @@ async function loadEntries(): Promise<void> {
             console.warn("[cofre-popup] loadEntries: tratando erro como sessao invalida/expirada.");
             entriesCache = [];
             sessionUnlocked = false;
+            clearSessionWindow();
             resetEntryFormMode();
             vaultExists = true;
             syncVaultUi();
@@ -579,8 +689,8 @@ async function loadEntries(): Promise<void> {
             setInteractive(true);
             setStatus(
                 response.error.code === "NOT_FOUND"
-                    ? "Sessao invalida ou expirada. Faca unlock novamente."
-                    : "Sessao expirada. Faca unlock novamente.",
+                    ? "Sessão inválida ou expirada. Faça unlock novamente."
+                    : "Sessão expirada. Faça unlock novamente.",
                 "error"
             );
             renderEntries();
@@ -593,13 +703,7 @@ async function loadEntries(): Promise<void> {
         count: entriesCache.length
     });
     renderEntries();
-
-    if (entriesCache.length === 0) {
-        setStatus("Nenhuma credencial encontrada.");
-        return;
-    }
-
-    setStatus(`${entriesCache.length} credencial(is) carregada(s).`);
+    setStatus(formatEntriesCount(entriesCache.length));
 }
 
 async function createEntry(): Promise<void> {
@@ -620,7 +724,7 @@ async function createEntry(): Promise<void> {
         }
 
         setStatus("Salvando chave...");
-        createEntryBtn.disabled = true;
+        setButtonLoading(createEntryBtn, true);
 
         let response: RuntimeResponse<CreateEntryUiResult>;
         try {
@@ -635,11 +739,10 @@ async function createEntry(): Promise<void> {
         } catch (error) {
             console.error("Falha ao cadastrar chave via background:", error);
             setStatus("Falha ao cadastrar a chave.", "error");
-            createEntryBtn.disabled = false;
             return;
+        } finally {
+            setButtonLoading(createEntryBtn, false);
         }
-
-        createEntryBtn.disabled = false;
 
         if (!response.ok) {
             setStatus(mapFriendlyError(response.error.code), "error");
@@ -697,12 +800,12 @@ async function createEntry(): Promise<void> {
         updatePayload.url === undefined &&
         updatePayload.notes === undefined
     ) {
-        setStatus("Nenhuma alteracao detectada para salvar.", "error");
+        setStatus("Nenhuma alteração detectada para salvar.", "error");
         return;
     }
 
-    setStatus("Salvando alteracoes...");
-    createEntryBtn.disabled = true;
+    setStatus("Salvando alterações...");
+    setButtonLoading(createEntryBtn, true);
 
     let response: RuntimeResponse<EditEntryUiResult>;
     try {
@@ -713,11 +816,10 @@ async function createEntry(): Promise<void> {
     } catch (error) {
         console.error("Falha ao editar chave via background:", error);
         setStatus("Falha ao editar a chave.", "error");
-        createEntryBtn.disabled = false;
         return;
+    } finally {
+        setButtonLoading(createEntryBtn, false);
     }
-
-    createEntryBtn.disabled = false;
 
     if (!response.ok) {
         setStatus(mapFriendlyError(response.error.code), "error");
@@ -732,10 +834,37 @@ async function createEntry(): Promise<void> {
     await loadEntries();
 }
 
+function getFilteredEntries(): EntrySummary[] {
+    if (!entriesFilter) {
+        return entriesCache;
+    }
+
+    return entriesCache.filter((entry) => {
+        const haystack = `${entry.servico} ${entry.usuario} ${entry.url ?? ""}`.toLowerCase();
+        return haystack.includes(entriesFilter);
+    });
+}
+
 function renderEntries(): void {
     entriesList.textContent = "";
 
-    for (const entry of entriesCache) {
+    const visibleEntries = getFilteredEntries();
+
+    entriesSearchInput.classList.toggle("hidden", entriesCache.length === 0);
+
+    if (visibleEntries.length === 0) {
+        const isFilterMiss = entriesCache.length > 0;
+        entriesEmptyText.textContent = isFilterMiss
+            ? "Nenhuma credencial corresponde à busca."
+            : "Nenhuma credencial cadastrada.";
+        emptyStateCreateBtn.classList.toggle("hidden", isFilterMiss);
+        entriesEmptyState.classList.remove("hidden");
+        return;
+    }
+
+    entriesEmptyState.classList.add("hidden");
+
+    for (const entry of visibleEntries) {
         const item = document.createElement("li");
         item.className = "entry-item";
 
@@ -743,14 +872,17 @@ function renderEntries(): void {
         titleDiv.className = "entry-title";
 
         const title = document.createElement("div");
+        title.className = "entry-title-text";
         title.textContent = `${entry.servico} - ${entry.usuario}`;
+        title.title = `${entry.servico} - ${entry.usuario}`;
 
         const meta = document.createElement("a");
         meta.className = "entry-meta";
         meta.textContent = entry.url ?? "Sem URL cadastrada";
-        if(entry.url){
+        if (entry.url) {
             meta.setAttribute("href", entry.url);
             meta.setAttribute("target", "_blank");
+            meta.title = entry.url;
         }
 
         const actions = document.createElement("div");
@@ -758,42 +890,23 @@ function renderEntries(): void {
 
         const autofillButton = document.createElement("button");
         autofillButton.type = "button";
-        autofillButton.className = "entry-action";
+        autofillButton.className = "entry-action autofill-action";
         autofillButton.textContent = "Autofill";
         autofillButton.addEventListener("click", () => {
             void useCredential(entry);
         });
 
-        const copyButton = document.createElement("button");
-        copyButton.type = "button";
-        copyButton.className = "entry-action secondary";
-        copyButton.textContent = "Copiar senha";
-        copyButton.addEventListener("click", () => {
+        const copyButton = createIconActionButton("Copiar senha", "secondary", ICON_PATH_KEY, () => {
             void copyPassword(entry);
         });
-
-        const copyUserButton = document.createElement("button");
-        copyUserButton.type = "button";
-        copyUserButton.className = "entry-action secondary";
-        copyUserButton.textContent = "Copiar usuario";
-        copyUserButton.addEventListener("click", () => {
+        const copyUserButton = createIconActionButton("Copiar usuário", "secondary", ICON_PATH_USER, () => {
             void copyUsername(entry);
         });
-
-        const editButton = document.createElement("button");
-        editButton.type = "button";
-        editButton.className = "entry-action secondary";
-        editButton.textContent = "Editar";
-        editButton.addEventListener("click", () => {
+        const editButton = createIconActionButton("Editar", "secondary", ICON_PATH_PENCIL, () => {
             void startEditEntry(entry);
         });
-
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.className = "entry-action danger";
-        deleteButton.textContent = "Excluir";
-        deleteButton.addEventListener("click", () => {
-            void deleteEntry(entry);
+        const deleteButton = createIconActionButton("Excluir", "danger", ICON_PATH_TRASH, () => {
+            openConfirmDeleteModal(entry);
         });
 
         titleDiv.append(title, meta);
@@ -803,13 +916,40 @@ function renderEntries(): void {
     }
 }
 
-async function deleteEntry(entry: EntrySummary): Promise<void> {
-    if (!(await ensureBackendAvailable())) {
-        return;
-    }
+function createIconActionButton(
+    label: string,
+    extraClass: string,
+    iconPath: string,
+    onClick: () => void
+): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `entry-action icon-action ${extraClass}`;
+    button.setAttribute("aria-label", label);
+    button.setAttribute("data-balloon", label);
+    // "up-right" alinha o tooltip a borda direita do botao (cresce para a esquerda);
+    // centralizado ("up") ele ultrapassa a borda do card e gera scroll horizontal.
+    button.setAttribute("data-balloon-pos", "up-right");
+    button.innerHTML =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 256 256" aria-hidden="true" focusable="false">` +
+        `<path fill="currentColor" d="${iconPath}"></path></svg>`;
+    button.addEventListener("click", onClick);
+    return button;
+}
 
-    const confirmed = window.confirm(`Excluir a chave ${entry.servico} - ${entry.usuario}? Esta ação não pode ser desfeita.`);
-    if (!confirmed) {
+function openConfirmDeleteModal(entry: EntrySummary): void {
+    pendingDeleteEntry = entry;
+    confirmDeleteText.textContent = `Excluir a chave ${entry.servico} - ${entry.usuario}? Esta ação não pode ser desfeita.`;
+    confirmDeleteModal.showModal();
+}
+
+function closeConfirmDeleteModal(): void {
+    pendingDeleteEntry = null;
+    confirmDeleteModal.close();
+}
+
+async function performDeleteEntry(entry: EntrySummary): Promise<void> {
+    if (!(await ensureBackendAvailable())) {
         return;
     }
 
@@ -839,10 +979,10 @@ async function deleteEntry(entry: EntrySummary): Promise<void> {
 
     entriesCache = entriesCache.filter((item) => item.id !== entry.id);
     renderEntries();
-    setStatus("Chave excluida com sucesso.", "success");
-    if (entriesCache.length === 0) {
-        setStatus("Nenhuma credencial encontrada.");
-    }
+    setStatus(
+        entriesCache.length === 0 ? "Chave excluída. Nenhuma credencial restante." : "Chave excluída com sucesso.",
+        "success"
+    );
 }
 
 async function startEditEntry(entry: EntrySummary): Promise<void> {
@@ -880,17 +1020,17 @@ async function startEditEntry(entry: EntrySummary): Promise<void> {
 
         if (!response.ok) {
             console.warn("GET_ENTRY_NOTES retornou erro:", response.error.code);
-            setStatus("Editando chave. Nao foi possivel carregar as notas agora.", "error");
+            setStatus("Editando chave. Não foi possível carregar as notas agora.", "error");
             return;
         }
 
         const notes = response.data.notes ?? "";
         editingEntryState.notas = notes;
         createNotesInput.value = notes;
-        setStatus("Chave carregada para edicao.", "success");
+        setStatus("Chave carregada para edição.", "success");
     } catch (error) {
         console.warn("Falha ao carregar notas para edicao:", error);
-        setStatus("Editando chave. Nao foi possivel carregar as notas agora.", "error");
+        setStatus("Editando chave. Não foi possível carregar as notas agora.", "error");
     }
 }
 
@@ -921,13 +1061,23 @@ async function useCredential(entry: EntrySummary): Promise<void> {
     }
 
     if (response.data.filled) {
+        // Preenchimento parcial: um dos campos nao foi encontrado na pagina.
+        if (response.data.reason === "USERNAME_FIELD_NOT_FOUND") {
+            setStatus("Autofill parcial: senha preenchida, mas o campo de usuário não foi encontrado.", "error");
+            return;
+        }
+        if (response.data.reason === "PASSWORD_FIELD_NOT_FOUND") {
+            setStatus("Autofill parcial: usuário preenchido, mas o campo de senha não foi encontrado.", "error");
+            return;
+        }
+
         if (response.data.postActionAttempted && response.data.postActionExecuted) {
-            setStatus("Autofill enviado e acoes automaticas executadas.", "success");
+            setStatus("Autofill enviado e ações automáticas executadas.", "success");
             return;
         }
 
         if (response.data.postActionReason === "PARSE_INVALID") {
-            setStatus("Autofill enviado. A acao das notas foi ignorada por formato invalido.");
+            setStatus("Autofill enviado. A ação das notas foi ignorada por formato inválido.");
             return;
         }
 
@@ -955,7 +1105,7 @@ async function copyPassword(entry: EntrySummary, silentOnSuccess = false): Promi
     }
 
     if (!silentOnSuccess) {
-        setStatus(`Obtendo senha de ${entry.servico} para copia...`);
+        setStatus(`Obtendo senha de ${entry.servico} para cópia...`);
     }
 
     let response: RuntimeResponse<GetPasswordValueUiResult>;
@@ -967,7 +1117,7 @@ async function copyPassword(entry: EntrySummary, silentOnSuccess = false): Promi
     } catch (error) {
         console.error("Falha ao obter senha para copia:", error);
         if (!silentOnSuccess) {
-            setStatus("Falha ao obter senha para copia.", "error");
+            setStatus("Falha ao obter senha para cópia.", "error");
         }
         return false;
     }
@@ -982,31 +1132,59 @@ async function copyPassword(entry: EntrySummary, silentOnSuccess = false): Promi
     const copied = await writeToClipboard(response.data.password);
     if (!copied) {
         if (!silentOnSuccess) {
-            setStatus("Nao foi possivel copiar a senha no clipboard deste navegador.", "error");
+            setStatus("Não foi possível copiar a senha no clipboard deste navegador.", "error");
         }
         return false;
     }
 
+    scheduleClipboardClear(response.data.password);
+
     if (!silentOnSuccess) {
-        setStatus("Senha copiada para clipboard.", "success");
+        setStatus("Senha copiada. O clipboard será limpo em 30s (com o popup aberto).", "success");
     }
 
     return true;
 }
 
+function scheduleClipboardClear(copiedValue: string): void {
+    if (clipboardClearTimeout !== null) {
+        clearTimeout(clipboardClearTimeout);
+    }
+
+    clipboardClearTimeout = window.setTimeout(() => {
+        clipboardClearTimeout = null;
+        void clearClipboardIfUnchanged(copiedValue);
+    }, CLIPBOARD_CLEAR_DELAY_MS);
+}
+
+async function clearClipboardIfUnchanged(copiedValue: string): Promise<void> {
+    try {
+        const current = await navigator.clipboard.readText();
+        if (current !== copiedValue) {
+            return;
+        }
+
+        await navigator.clipboard.writeText("");
+        setStatus("Clipboard limpo por segurança.");
+    } catch (error) {
+        // Sem foco no popup o navegador bloqueia o acesso ao clipboard; nada a fazer.
+        console.warn("Falha ao limpar clipboard automaticamente:", error);
+    }
+}
+
 async function copyUsername(entry: EntrySummary): Promise<boolean> {
     if (!entry.usuario) {
-        setStatus("Usuario vazio nesta credencial.", "error");
+        setStatus("Usuário vazio nesta credencial.", "error");
         return false;
     }
 
     const copied = await writeToClipboard(entry.usuario);
     if (!copied) {
-        setStatus("Nao foi possivel copiar o usuario no clipboard deste navegador.", "error");
+        setStatus("Não foi possível copiar o usuário no clipboard deste navegador.", "error");
         return false;
     }
 
-    setStatus("Usuario copiado para clipboard.", "success");
+    setStatus("Usuário copiado para clipboard.", "success");
     return true;
 }
 
@@ -1014,6 +1192,8 @@ function setActiveTab(tab: "entries" | "create"): void {
     const entriesActive = tab === "entries";
     tabEntriesBtn.classList.toggle("active", entriesActive);
     tabCreateBtn.classList.toggle("active", !entriesActive);
+    tabEntriesBtn.setAttribute("aria-selected", String(entriesActive));
+    tabCreateBtn.setAttribute("aria-selected", String(!entriesActive));
 
     if (!sessionUnlocked) {
         entriesPanel.classList.add("hidden");
@@ -1024,15 +1204,22 @@ function setActiveTab(tab: "entries" | "create"): void {
     entriesPanel.classList.toggle("hidden", !entriesActive);
     createPanel.classList.toggle("hidden", entriesActive);
     if (tab === "entries") {
-        if (entriesCache) {
-            setStatus(`${entriesCache.length} credencial(is) carregada(s).`);
-        } else {
-            setStatus("Nenhuma credencial encontrada.");
+        setStatus(formatEntriesCount(entriesCache.length));
+        if (entriesCache.length > 0) {
+            entriesSearchInput.focus();
         }
     } else {
         setStatus("Preencha os campos para cadastrar uma nova chave.");
         void prefillCreateFieldsFromActiveTab();
     }
+}
+
+function formatEntriesCount(count: number): string {
+    if (count === 0) {
+        return "Nenhuma credencial encontrada.";
+    }
+
+    return count === 1 ? "1 credencial carregada." : `${count} credenciais carregadas.`;
 }
 
 function clearCreateForm(): void {
@@ -1041,6 +1228,7 @@ function clearCreateForm(): void {
     createPasswordInput.value = "";
     createUrlInput.value = "";
     createNotesInput.value = "";
+    setPasswordVisibility(toggleCreatePasswordBtn, createPasswordInput, false);
 }
 
 async function prefillCreateFieldsFromActiveTab(): Promise<void> {
@@ -1262,23 +1450,34 @@ function getHostnameServiceName(rawUrl: string | null): string | null {
 }
 
 async function lockSession(): Promise<void> {
-    if (!(await ensureBackendAvailable())) {
+    setButtonLoading(lockBtn, true);
+
+    let response: RuntimeResponse<{ locked: boolean }>;
+    try {
+        response = await sendMessage<{ locked: boolean }>({ type: "LOCK_SESSION" });
+    } catch (error) {
+        console.error("Falha ao encerrar sessao via background:", error);
+        setStatus("Sem resposta do background da extensão. Tente novamente.", "error");
         return;
+    } finally {
+        setButtonLoading(lockBtn, false);
     }
 
-    const response = await sendMessage<{ locked: boolean }>({ type: "LOCK_SESSION" });
     if (!response.ok) {
         setStatus(mapFriendlyError(response.error.code), "error");
         return;
     }
 
     entriesCache = [];
+    entriesFilter = "";
+    entriesSearchInput.value = "";
     renderEntries();
     sessionUnlocked = false;
+    clearSessionWindow();
     resetEntryFormMode();
     syncSessionUi();
     setInteractive(true);
-    setStatus("Sessao encerrada.", "success");
+    setStatus("Sessão encerrada.", "success");
 }
 
 async function ensureBackendAvailable(options?: { showReadyStatus?: boolean }): Promise<boolean> {
@@ -1337,17 +1536,20 @@ function setInteractive(enabled: boolean): void {
 }
 
 function syncVaultUi(): void {
-    //createVaultBtn.classList.remove("hidden");
+    createVaultBtn.classList.toggle("hidden", vaultExists);
     createVaultBtn.textContent = "Cadastrar cofre";
 }
 
 function syncSessionUi(): void {
     unlockPanel.classList.toggle("hidden", sessionUnlocked);
     lockBtn.classList.toggle("hidden", !sessionUnlocked);
+    updateSessionIndicator();
 
     if (!sessionUnlocked) {
+        stopSessionTicker();
         entriesPanel.classList.add("hidden");
         createPanel.classList.add("hidden");
+        setPasswordVisibility(toggleMasterPasswordBtn, passwordInput, false);
         passwordInput.focus();
         return;
     }
@@ -1355,10 +1557,99 @@ function syncSessionUi(): void {
     setActiveTab(tabCreateBtn.classList.contains("active") ? "create" : "entries");
 }
 
-function toggleLoading(loading: boolean): void {
-    unlockBtn.disabled = loading;
-    refreshBtn.disabled = loading;
-    lockBtn.disabled = loading;
+function setButtonLoading(button: HTMLButtonElement, loading: boolean): void {
+    button.classList.toggle("loading", loading);
+    button.disabled = loading;
+}
+
+function applySessionWindow(session: { expiresAtUnix?: number; maxExpiresAtUnix?: number }): void {
+    sessionExpiresAtUnix = typeof session.expiresAtUnix === "number" ? session.expiresAtUnix : null;
+    sessionMaxExpiresAtUnix = typeof session.maxExpiresAtUnix === "number" ? session.maxExpiresAtUnix : null;
+    updateSessionIndicator();
+    startSessionTicker();
+}
+
+function clearSessionWindow(): void {
+    sessionExpiresAtUnix = null;
+    sessionMaxExpiresAtUnix = null;
+    stopSessionTicker();
+    updateSessionIndicator();
+}
+
+function computeSessionRemainingSecs(): number | null {
+    if (sessionExpiresAtUnix === null) {
+        return null;
+    }
+
+    const limit = sessionMaxExpiresAtUnix !== null
+        ? Math.min(sessionExpiresAtUnix, sessionMaxExpiresAtUnix)
+        : sessionExpiresAtUnix;
+    return limit - Math.floor(Date.now() / 1000);
+}
+
+function updateSessionIndicator(): void {
+    const remaining = computeSessionRemainingSecs();
+    if (!sessionUnlocked || remaining === null) {
+        sessionStateText.classList.add("hidden");
+        sessionStateText.textContent = "";
+        return;
+    }
+
+    const formatted = formatDuration(Math.max(0, remaining));
+    sessionStateText.textContent = `Sessão ativa · expira em ${formatted ?? "instantes"}`;
+    sessionStateText.classList.remove("hidden");
+}
+
+function startSessionTicker(): void {
+    stopSessionTicker();
+    sessionTickerInterval = window.setInterval(() => {
+        void onSessionTick();
+    }, SESSION_TICKER_INTERVAL_MS);
+}
+
+function stopSessionTicker(): void {
+    if (sessionTickerInterval !== null) {
+        clearInterval(sessionTickerInterval);
+        sessionTickerInterval = null;
+    }
+}
+
+async function onSessionTick(): Promise<void> {
+    if (!sessionUnlocked) {
+        stopSessionTicker();
+        return;
+    }
+
+    const remaining = computeSessionRemainingSecs();
+    if (remaining !== null && remaining <= 0) {
+        // O TTL local pode estar defasado (cada operacao renova a sessao na API).
+        // Confirma com o background antes de marcar como expirada.
+        try {
+            const status = await sendMessage<SessionStatusUiResult>({ type: "GET_SESSION_STATUS" });
+            if (status.ok && status.data.unlocked) {
+                applySessionWindow(status.data);
+                return;
+            }
+        } catch (error) {
+            console.warn("Falha ao revalidar sessao no ticker:", error);
+        }
+
+        handleSessionExpiredLocally();
+        return;
+    }
+
+    updateSessionIndicator();
+}
+
+function handleSessionExpiredLocally(): void {
+    sessionUnlocked = false;
+    entriesCache = [];
+    renderEntries();
+    clearSessionWindow();
+    resetEntryFormMode();
+    syncSessionUi();
+    setInteractive(true);
+    setStatus("Sessão expirada. Faça unlock novamente.", "error");
 }
 
 function setStatus(message: string, tone: "error" | "success" | "neutral" = "neutral"): void {
@@ -1371,27 +1662,27 @@ function setStatus(message: string, tone: "error" | "success" | "neutral" = "neu
 
 function mapFriendlyError(code: string): string {
     if (code === "UNAUTHORIZED") {
-        return "Senha mestra incorreta ou cofre invalido.";
+        return "Senha mestra incorreta ou cofre inválido.";
     }
     if (code === "API_OFFLINE") {
-        return "API local offline. Verifique se o app principal esta em execucao.";
+        return "API local offline. Verifique se o app principal está em execução.";
     }
     if (code === "SESSION_EXPIRED") {
-        return "Sessao expirada. Faca unlock novamente.";
+        return "Sessão expirada. Faça unlock novamente.";
     }
     if (code === "NOT_FOUND") {
-        return "Credencial nao encontrada ou sessao nao existe mais.";
+        return "Credencial não encontrada ou sessão não existe mais.";
     }
     if (code === "BAD_REQUEST") {
-        return "Dados invalidos enviados para a API local.";
+        return "Dados inválidos enviados para a API local.";
     }
     if (code === "CONFLICT") {
-        return "O recurso ja existe e nao pode ser criado novamente.";
+        return "O recurso já existe e não pode ser criado novamente.";
     }
     if (code === "INVALID_RESPONSE") {
-        return "Resposta invalida da API local.";
+        return "Resposta inválida da API local.";
     }
-    return "Falha inesperada na comunicacao com a API local.";
+    return "Falha inesperada na comunicação com a API local.";
 }
 
 function formatSessionWindow(session: { ttlSecs?: number; maxTtlSecs?: number }): string {
@@ -1399,14 +1690,14 @@ function formatSessionWindow(session: { ttlSecs?: number; maxTtlSecs?: number })
     const maximum = formatDuration(session.maxTtlSecs);
 
     if (inactivity && maximum) {
-        return `Inatividade: ${inactivity}. Limite maximo: ${maximum}.`;
+        return `Inatividade: ${inactivity}. Limite máximo: ${maximum}.`;
     }
 
     if (inactivity) {
         return `Inatividade: ${inactivity}.`;
     }
 
-    return "Sessao ativa.";
+    return "Sessão ativa.";
 }
 
 function formatDuration(totalSeconds: number | undefined): string | null {
@@ -1434,22 +1725,22 @@ function formatDuration(totalSeconds: number | undefined): string | null {
 
 function describeAutofillReason(reason: string): string {
     if (reason === "PASSWORD_FIELD_NOT_FOUND") {
-        return "campo de senha nao encontrado na pagina";
+        return "campo de senha não encontrado na página";
     }
     if (reason === "USERNAME_FIELD_NOT_FOUND") {
-        return "campo de usuario nao encontrado para preencher junto com a senha";
+        return "campo de usuário não encontrado para preencher junto com a senha";
     }
     if (reason === "NO_FILLABLE_FIELDS") {
-        return "nenhum campo de login visivel/editavel foi detectado";
+        return "nenhum campo de login visível/editável foi detectado";
     }
     if (reason === "ACTIVE_TAB_NOT_FOUND") {
-        return "nenhuma aba ativa disponivel";
+        return "nenhuma aba ativa disponível";
     }
     if (reason === "CONTENT_SCRIPT_UNREACHABLE") {
-        return "content script nao esta acessivel nesta pagina (ex.: chrome://, edge://, web store)";
+        return "content script não está acessível nesta página (ex.: chrome://, edge://, web store)";
     }
     if (reason === "CONTENT_SCRIPT_NO_RESPONSE") {
-        return "content script nao respondeu ao comando de autofill";
+        return "content script não respondeu ao comando de autofill";
     }
 
     return "motivo desconhecido";
@@ -1457,39 +1748,39 @@ function describeAutofillReason(reason: string): string {
 
 function mapAutofillFailureMessage(reason: string): string {
     if (reason === "CONTENT_SCRIPT_UNREACHABLE") {
-        return "Nao foi possivel preencher nesta pagina. O site pode bloquear scripts (CSP/CORS/iframe).";
+        return "Não foi possível preencher nesta página. O site pode bloquear scripts (CSP/CORS/iframe).";
     }
     if (reason === "PASSWORD_FIELD_NOT_FOUND") {
-        return "Campo de senha nao encontrado nesta pagina.";
+        return "Campo de senha não encontrado nesta página.";
     }
     if (reason === "USERNAME_FIELD_NOT_FOUND") {
-        return "Campo de usuario nao encontrado nesta pagina.";
+        return "Campo de usuário não encontrado nesta página.";
     }
     if (reason === "NO_FILLABLE_FIELDS") {
-        return "Nenhum campo de login preenchivel foi encontrado.";
+        return "Nenhum campo de login preenchível foi encontrado.";
     }
 
-    return "Senha obtida, mas nao foi possivel preencher automaticamente nesta pagina.";
+    return "Senha obtida, mas não foi possível preencher automaticamente nesta página.";
 }
 
 function describePostActionReason(reason: string): string {
     if (reason === "ELEMENT_NOT_FOUND") {
-        return "elemento alvo do click nao foi encontrado na pagina";
+        return "elemento alvo do click não foi encontrado na página";
     }
     if (reason === "CLICK_ERROR") {
         return "houve erro ao executar o click configurado nas notas";
     }
     if (reason === "AUTOFILL_FAILED") {
-        return "a acao nao foi executada porque o autofill falhou";
+        return "a ação não foi executada porque o autofill falhou";
     }
     if (reason === "PARSE_INVALID") {
-        return "o comando das notas esta em formato invalido";
+        return "o comando das notas está em formato inválido";
     }
     if (reason === "NOT_CONFIGURED") {
-        return "nenhuma acao de notas foi configurada";
+        return "nenhuma ação de notas foi configurada";
     }
 
-    return "a acao configurada nas notas nao foi executada";
+    return "a ação configurada nas notas não foi executada";
 }
 
 async function writeToClipboard(text: string): Promise<boolean> {
@@ -1586,23 +1877,18 @@ async function changePassword(): Promise<void> {
     const confirmPassword = confirmPasswordInput.value.trim();
 
     if (!newPassword || !confirmPassword) {
-        setStatus("Informe a nova senha e sua confirmacao.", "error");
+        setStatus("Informe a nova senha e sua confirmação.", "error");
         return;
     }
 
     if (newPassword !== confirmPassword) {
-        setStatus("As senhas nao coincidem.", "error");
-        return;
-    }
-
-    if (newPassword.length < 1) {
-        setStatus("A nova senha nao pode estar vazia.", "error");
+        setStatus("As senhas não coincidem.", "error");
         return;
     }
 
     closeChangePasswordModal();
     setStatus("Trocando senha mestra...");
-    toggleLoading(true);
+    setButtonLoading(changePasswordBtn, true);
 
     let response: RuntimeResponse<ChangePasswordUiResult>;
     try {
@@ -1614,11 +1900,10 @@ async function changePassword(): Promise<void> {
     } catch (error) {
         console.error("Falha ao trocar senha mestra via background:", error);
         setStatus("Falha ao trocar a senha mestra.", "error");
-        toggleLoading(false);
         return;
+    } finally {
+        setButtonLoading(changePasswordBtn, false);
     }
-
-    toggleLoading(false);
 
     if (!response.ok) {
         setStatus(mapFriendlyError(response.error.code), "error");
@@ -1627,10 +1912,19 @@ async function changePassword(): Promise<void> {
 
     newPasswordInput.value = "";
     confirmPasswordInput.value = "";
+    applySessionWindow(response.data);
     setStatus(
-        `Senha mestra trocada com sucesso. ${response.data.invalidatedSessions} outra(s) sessao(oes) foi(foram) invalidada(s). ${formatSessionWindow(response.data)}`,
+        `Senha mestra trocada com sucesso. ${formatInvalidatedSessions(response.data.invalidatedSessions)} ${formatSessionWindow(response.data)}`,
         "success"
     );
+}
+
+function formatInvalidatedSessions(count: number): string {
+    if (count === 0) {
+        return "Nenhuma outra sessão foi invalidada.";
+    }
+
+    return count === 1 ? "1 outra sessão foi invalidada." : `${count} outras sessões foram invalidadas.`;
 }
 
 function openChangePasswordModal(): void {

@@ -27,9 +27,11 @@ Este projeto funciona em conjunto com a aplicacao backend Safe Guard:
 
 - **Repositorio**: [safe-guard (Backend)](https://github.com/JSGuilherme/safe-guard)
 - **Funcao**: API local que fornece credenciais e gerenciamento de sessoes
-- **Endpoint local**: `http://127.0.0.1:5474`
+- **Endpoint local**: `http://127.0.0.1:5474` (porta padrao)
 
 Certifique-se de que o backend esta rodando localmente antes de usar a extensao.
+
+A porta da API pode ser alterada no popup da extensao em **Configuracoes** (icone de engrenagem). A mudanca e aplicada imediatamente, sem precisar recarregar a extensao.
 
 ![Backend Tray](src/prints/backend_tray.png)
 
@@ -87,8 +89,10 @@ A extensao permite desbloquear credenciais com a senha mestra e preenchê-las au
 
 - `storage`: manter estado de sessao no escopo da extensao
 - `tabs` e `activeTab`: localizar aba ativa para enviar comando de autofill
+- `scripting`: reinjetar o content script antes do autofill quando necessario
+- `clipboardWrite` e `clipboardRead`: copiar senha/usuario e limpar o clipboard automaticamente apos 30s
 - `host_permissions`:
-  - `http://127.0.0.1:5474/*` para consumir API local
+  - `http://127.0.0.1/*` para consumir API local (qualquer porta configurada)
   - `<all_urls>` para permitir content script em paginas web
 
 ## Tratamento de erros implementado
@@ -97,6 +101,8 @@ A extensao permite desbloquear credenciais com a senha mestra e preenchê-las au
 - Sessao expirada/invalida (`SESSION_EXPIRED`)
 - Credencial inexistente (`NOT_FOUND`)
 - Resposta invalida da API (`INVALID_RESPONSE`)
+- Autofill parcial: quando apenas um dos campos (usuario ou senha) e encontrado na pagina, o popup avisa qual campo nao foi preenchido
+- Background sem resposta: o popup nao trava; exibe erro e reabilita os botoes
 
 O popup exibe mensagens amigaveis para esses cenarios.
 
@@ -121,6 +127,7 @@ Quando a API migrar para header Authorization, a troca fica isolada no cliente (
 
 - Nao ha logs contendo token ou senha em texto claro.
 - A senha e requisitada apenas no momento de uso de credencial.
+- Ao copiar uma senha, o clipboard e limpo automaticamente apos 30 segundos (enquanto o popup estiver aberto).
 
 ## Atalhos de Teclado
 
@@ -133,4 +140,6 @@ A extensão inclui atalhos de teclado sugeridos para agilizar o uso. Esses atalh
 Observações:
 - O atalho de abertura do popup usa o comando reservado `_execute_action` e mostrará o popup definido em `manifest.json`.
 - O atalho de autofill tenta preencher a primeira credencial priorizada para a aba ativa (a prioridade segue a mesma lógica usada pela UI do popup).
+- Os atalhos de autofill e de bloqueio mostram feedback no ícone da extensão: um badge verde (✓) em caso de sucesso ou vermelho (✕) em caso de falha, por alguns segundos.
 - Se preferir outro atalho, abra a tela de atalhos do navegador (link acima) e remapeie a tecla para cada comando.
+- A tela de atalhos também pode ser aberta pelo botão "Configurar atalhos do teclado" nas Configurações do popup.

@@ -28,6 +28,8 @@ interface AutofillPostAction {
 
 interface AutofillResponsePayload {
   filled?: boolean;
+  filledUsername?: boolean;
+  filledPassword?: boolean;
   reason?: string;
   reasonDetail?: string;
   postActionAttempted?: boolean;
@@ -354,6 +356,8 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
         ok: true,
         data: {
           filled: autofillResult.filled,
+          filledUsername: autofillResult.filledUsername,
+          filledPassword: autofillResult.filledPassword,
           reason: autofillResult.reason,
           reasonDetail: autofillResult.reasonDetail,
           postActionAttempted: autofillResult.postActionAttempted,
@@ -461,6 +465,7 @@ async function handleCommand(command: string): Promise<void> {
     try {
       const result = await autofillFirstSavedEntry();
       console.info("[cofre-bg] Command autofill-first-entry executado.", result);
+      await showBadgeFeedback(result.filled ? "ok" : "fail");
       return;
     } catch (error) {
       if (error instanceof ApiClientError && error.code === "SESSION_EXPIRED") {
@@ -473,18 +478,47 @@ async function handleCommand(command: string): Promise<void> {
           await chrome.action.openPopup();
         } catch (openErr) {
           console.warn("[cofre-bg] Falha ao abrir popup da extensao:", openErr);
+          await showBadgeFeedback("fail");
         }
         return;
       }
 
       console.error("[cofre-bg] Erro ao executar comando autofill-first-entry:", error);
+      await showBadgeFeedback("fail");
       return;
     }
   }
 
   if (command === "lock-session") {
-    await lockCurrentSession();
-    console.info("[cofre-bg] Command lock-session executado.");
+    try {
+      await lockCurrentSession();
+      console.info("[cofre-bg] Command lock-session executado.");
+      await showBadgeFeedback("ok");
+    } catch (error) {
+      console.error("[cofre-bg] Erro ao executar comando lock-session:", error);
+      await showBadgeFeedback("fail");
+    }
+  }
+}
+
+const BADGE_FEEDBACK_DURATION_MS = 2500;
+let badgeClearTimeout: ReturnType<typeof setTimeout> | null = null;
+
+async function showBadgeFeedback(kind: "ok" | "fail"): Promise<void> {
+  try {
+    if (badgeClearTimeout !== null) {
+      clearTimeout(badgeClearTimeout);
+    }
+
+    await chrome.action.setBadgeBackgroundColor({ color: kind === "ok" ? "#35c48a" : "#ff6b81" });
+    await chrome.action.setBadgeText({ text: kind === "ok" ? "✓" : "✕" });
+
+    badgeClearTimeout = setTimeout(() => {
+      void chrome.action.setBadgeText({ text: "" });
+      badgeClearTimeout = null;
+    }, BADGE_FEEDBACK_DURATION_MS);
+  } catch (error) {
+    console.warn("[cofre-bg] Falha ao exibir feedback no badge da extensao:", error);
   }
 }
 
@@ -493,8 +527,15 @@ async function lockCurrentSession(): Promise<void> {
     try {
       await apiClient.lockSession(sessionState.token);
     } catch (error) {
-      if (!(error instanceof ApiClientError) || error.code !== "NOT_FOUND") {
-        throw error;
+      // O lock local deve sempre funcionar: se a API estiver offline ou o token
+      // ja nao existir, apenas registra o aviso e limpa a sessao local mesmo assim.
+      if (error instanceof ApiClientError) {
+        console.warn("[cofre-bg] lockCurrentSession: falha ao bloquear sessao na API local.", {
+          code: error.code,
+          status: error.status
+        });
+      } else {
+        console.warn("[cofre-bg] lockCurrentSession: erro inesperado ao bloquear sessao na API local.", error);
       }
     }
   }
@@ -504,6 +545,8 @@ async function lockCurrentSession(): Promise<void> {
 
 async function autofillFirstSavedEntry(): Promise<{
   filled: boolean;
+  filledUsername?: boolean;
+  filledPassword?: boolean;
   reason?: string;
   reasonDetail?: string;
   postActionAttempted?: boolean;
@@ -551,6 +594,8 @@ async function autofillFirstSavedEntry(): Promise<{
 
   return {
     filled: autofillResult.filled,
+    filledUsername: autofillResult.filledUsername,
+    filledPassword: autofillResult.filledPassword,
     reason: autofillResult.reason,
     reasonDetail: autofillResult.reasonDetail,
     postActionAttempted: autofillResult.postActionAttempted,
@@ -770,6 +815,8 @@ async function sendAutofillToActiveTab(payload: {
   postAction?: AutofillPostAction[];
 }): Promise<{
   filled: boolean;
+  filledUsername?: boolean;
+  filledPassword?: boolean;
   reason?: string;
   reasonDetail?: string;
   postActionAttempted?: boolean;
@@ -798,6 +845,8 @@ async function sendAutofillToActiveTab(payload: {
 
     return {
       filled: Boolean(response.filled),
+      filledUsername: response.filledUsername,
+      filledPassword: response.filledPassword,
       reason: response.reason,
       reasonDetail: response.reasonDetail,
       postActionAttempted: response.postActionAttempted,
@@ -829,6 +878,8 @@ async function sendAutofillToActiveTab(payload: {
 
         return {
           filled: Boolean(retryResponse.filled),
+          filledUsername: retryResponse.filledUsername,
+          filledPassword: retryResponse.filledPassword,
           reason: retryResponse.reason,
           reasonDetail: retryResponse.reasonDetail,
           postActionAttempted: retryResponse.postActionAttempted,

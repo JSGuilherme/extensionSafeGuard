@@ -89,6 +89,8 @@ export interface GetEntryNotesUiResult {
 
 export interface GetPasswordUiResult {
   filled: boolean;
+  filledUsername?: boolean;
+  filledPassword?: boolean;
   reason?: string;
   reasonDetail?: string;
   postActionAttempted?: boolean;
