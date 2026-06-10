@@ -460,6 +460,7 @@ async function handleMessage(message: RuntimeRequest): Promise<RuntimeResponse<u
 
 async function handleCommand(command: string): Promise<void> {
   await initializePromise;
+  await showBadgeFeedback("loading");
 
   if (command === "autofill-first-entry") {
     try {
@@ -504,14 +505,14 @@ async function handleCommand(command: string): Promise<void> {
 const BADGE_FEEDBACK_DURATION_MS = 2500;
 let badgeClearTimeout: ReturnType<typeof setTimeout> | null = null;
 
-async function showBadgeFeedback(kind: "ok" | "fail"): Promise<void> {
+async function showBadgeFeedback(kind: "ok" | "fail" | "loading"): Promise<void> {
   try {
     if (badgeClearTimeout !== null) {
       clearTimeout(badgeClearTimeout);
     }
 
-    await chrome.action.setBadgeBackgroundColor({ color: kind === "ok" ? "#35c48a" : "#ff6b81" });
-    await chrome.action.setBadgeText({ text: kind === "ok" ? "✓" : "✕" });
+    await chrome.action.setBadgeBackgroundColor({ color: kind === "ok" ? "#35c48a" : kind === "loading" ? "#f39c12" : "#ff6b81" });
+    await chrome.action.setBadgeText({ text: kind === "ok" ? "✓" : kind === "loading" ? "⏳" : "✕" });
 
     badgeClearTimeout = setTimeout(() => {
       void chrome.action.setBadgeText({ text: "" });
